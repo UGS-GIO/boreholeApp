@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="description" content="ArcGIS JS v4, Calcite Maps and Bootstrap Example">
+ 
+  <title>Utah Subsurface Geologic Database</title>
+
+  <!-- Calcite Maps Bootstrap -->
+  <link rel="stylesheet" href="https://esri.github.io/calcite-maps/dist/css/calcite-maps-bootstrap.min-v0.10.css">
+  <!--link rel="stylesheet" href="http://localhost/GitHub/calcite-maps/dist/css/calcite-maps-bootstrap.min-v0.10.css"-->
+  
+  <!-- Calcite Maps -->
+  <link rel="stylesheet" href="https://esri.github.io/calcite-maps/dist/css/calcite-maps-arcgis-4.x.min-v0.10.css">
+  <!--link rel="stylesheet" href="http://localhost/GitHub/calcite-maps/dist/css/calcite-maps-arcgis-4.x.min-v0.10.css"-->
+
+  <!-- ArcGIS JS 4 -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.10/esri/css/main.css">
+   <!-- Boilerplate Template Syle sheet -->
+   <link rel="stylesheet" href="/apps/_ugsmaptemplate/template.css">
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+
+</head>
+
+<body class="calcite-maps calcite-nav-top">
+  <!-- Navbar -->
+
+  <nav class="navbar calcite-navbar navbar-fixed-top calcite-text-light calcite-bg-dark">
+    <!-- Menu -->
+    <div class="dropdown calcite-dropdown calcite-text-dark calcite-bg-light" role="presentation">
+      <a class="dropdown-toggle" role="menubutton" aria-haspopup="true" aria-expanded="false" tabindex="0">
+        <div class="calcite-dropdown-toggle">
+          <span class="sr-only">Toggle dropdown menu</span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </a>
+      <ul class="dropdown-menu" role="menu">
+        <li><a role="menuitem" tabindex="0" data-target="#panelInfo" aria-haspopup="true"><span class="glyphicon glyphicon-info-sign"></span> About</a></li>
+        <li><a role="menuitem" tabindex="0" href="#" data-target="#panelLegend" aria-haspopup="true"><span class="glyphicon glyphicon-list-alt"></span> Legend</a></li>
+        <li><a role="menuitem" tabindex="0" href="#" data-target="#panelLayers" aria-haspopup="true"><span class="glyphicon glyphicon-list-alt"></span> Layers</a></li>
+        <li><a role="menuitem" tabindex="0" href="#" id="calciteToggleNavbar" aria-haspopup="true"><span class="glyphicon glyphicon-fullscreen"></span> Full Map</a></li>
+      </ul>
+    </div>
+    <!-- Title -->
+    <div class="calcite-title calcite-overflow-hidden">
+        <!-- <div id="logo"><a href="https://geology.utah.gov"><img src="https://geology.utah.gov/apps/wetlands/logo.png" style="width:34px"></a></div>  -->
+        <span class="calcite-title-main"><a href="https://geology.utah.gov">Utah Geological Survey</a></span>
+        <span class="calcite-title-divider hidden-xs"></span>
+        <span class="calcite-title-sub hidden-xs" id="subTitle"> </span>
+        <span class="calcite-title-sub hidden-xs" id="subTitle">Utah Subsurface Geologic Database</span>
+      </div>
+    <!-- Nav -->
+    <ul class="nav navbar-nav calcite-nav">
+      <li>
+        <div class="calcite-navbar-search calcite-search-expander">
+          <div id="searchWidgetDiv"></div>
+        </div>
+      </li>
+    </ul>
+  </nav>
+
+  <!--/.calcite-navbar -->
+
+  <!-- Map  -->
+
+  <div class="calcite-map calcite-map-absolute">
+    <div id="mapViewDiv"></div>
+  </div>
+
+  <!-- /.calcite-map -->
+
+  <!-- Panels -->
+
+  <div class="calcite-panels calcite-panels-right calcite-text-light calcite-bg-dark panel-group">
+
+    <!-- Panel - Basemaps -->
+
+    <div id="panelInfo" class="panel collapse in">
+      <div id="headingInfo" class="panel-heading" role="tab">
+        <div class="panel-title">
+          <a class="panel-toggle" role="button" data-toggle="collapse" href="#collapseInfo"  aria-expanded="true" aria-controls="collapseInfo"><span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span><span class="panel-label">About</span></a> 
+          <a class="panel-close" role="button" data-toggle="collapse" tabindex="0" href="#panelInfo"><span class="esri-icon esri-icon-close" aria-hidden="true"></span></a>  
+        </div>
+      </div>
+      <div id="collapseInfo" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="headingInfo">
+        <div class="panel-body">
+          <p>This is my map app!</p>
+        </div>
+     </div>
+    </div>
+
+    <!-- Panel - Legend -->
+
+    <div id="panelLegend" class="panel collapse">
+      <div id="headingLegend" class="panel-heading" role="tab">
+        <div class="panel-title">
+          <a class="panel-toggle" role="button" data-toggle="collapse" href="#collapseLegend" aria-expanded="false" aria-controls="collapseLegend"><span class="glyphicon glyphicon-list-alt" aria-hidden="true"></span><span class="panel-label">Legend</span></a> 
+          <a class="panel-close" role="button" data-toggle="collapse" tabindex="0" href="#panelLegend"><span class="esri-icon esri-icon-close" aria-hidden="true"></span></a> 
+        </div>
+      </div>
+      <div id="collapseLegend" class="panel-collapse collapse" role="tabpanel" aria-labelledby="headingLegend">
+        <div class="panel-body">            
+          <div id="legendDiv"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel - Layers -->
+
+    <div id="panelLayers" class="panel collapse">
+      <div id="headingLayers" class="panel-heading" role="tab">
+        <div class="panel-title">
+          <a class="panel-toggle" role="button" data-toggle="collapse" href="#collapseLayers" aria-expanded="false" aria-controls="collapseLegend"><span class="glyphicon glyphicon-list-alt" aria-hidden="true"></span><span class="panel-label">Layers</span></a> 
+          <a class="panel-close" role="button" data-toggle="collapse" tabindex="0" href="#panelLayers"><span class="esri-icon esri-icon-close" aria-hidden="true"></span></a> 
+        </div>
+      </div>
+      <div id="collapseLayers" class="panel-collapse collapse" role="tabpanel" aria-labelledby="headingLayers">
+        <div class="panel-body">            
+          <div id="layersDiv"></div>
+        </div>
+      </div>
+    </div>
+
+
+
+  </div>
+
+  <!-- /.calcite-panels -->
+
+  <script type="text/javascript">
+    var dojoConfig = {
+      packages: [{
+        name: "bootstrap",
+        location: "https://esri.github.io/calcite-maps/dist/vendor/dojo-bootstrap"
+      },
+      {
+        name: "calcite-maps",
+        location: "https://esri.github.io/calcite-maps/dist/js/dojo"
+        
+      }]
+    };
+  </script>
+
+  <!-- ArcGIS JS 4 -->
+  <script src="https://js.arcgis.com/4.10/"></script>
+
+  <script>
+    
+    require([
+      // ArcGIS
+      "esri/WebMap",
+      "esri/views/MapView",
+      // Widgets
+      "esri/widgets/Home",
+      "esri/widgets/Zoom",
+      "esri/widgets/Compass",
+      "esri/widgets/Search",
+      "esri/widgets/Legend",
+      "esri/widgets/LayerList",
+      "esri/widgets/BasemapToggle",
+      "esri/layers/FeatureLayer",
+      "esri/layers/TileLayer",
+      "esri/widgets/ScaleBar",
+      "esri/widgets/Attribution",
+      "dojo/_base/array",
+      // Bootstrap
+      "bootstrap/Collapse",
+      "bootstrap/Dropdown",
+      // Calcite Maps
+      "calcite-maps/calcitemaps-v0.10",
+      
+      // Calcite Maps ArcGIS Support
+      "calcite-maps/calcitemaps-arcgis-support-v0.10",
+      "dojo/domReady!"
+    ], function(WebMap, MapView, Home, Zoom, Compass, Search, Legend, LayerList, BasemapToggle, FeatureLayer, TileLayer, ScaleBar, Attribution, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport) {
+      /******************************************************************
+       *
+       * Create the map, view and widgets
+       * 
+       ******************************************************************/
+      // Map
+
+      
+      var map = new WebMap({
+        basemap: "topo"
+      });
+
+      
+      // View
+      var mapView = new MapView({
+        container: "mapViewDiv",
+        map: map,
+        padding: {
+          top: 50,
+          bottom: 0
+        },
+        map: map,
+        center: [-111.3, 39.4],
+        zoom: 7,
+        scale: 4600000,
+        ui: {components: []},
+        popup: {
+            dockEnabled: true,
+        }
+      });
+
+
+      // ------------------------------------ load map layers -------------------------------------
+
+
+      var mapLayer = new TileLayer("https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer", {
+            id: "24k",
+            index: 0,
+            opacity: 0.7,
+            title: "1:24,000 Geologic Maps",
+            visible: false,
+            //minScale: 30000,
+            //maxScale: 4500
+      });
+      map.add(mapLayer);
+      
+      var featureLayer = new FeatureLayer({
+          url: "https://webmaps.geology.utah.gov/arcgis/rest/services/Hazards/Boreholes/MapServer/0",
+          opacity: 0.8,
+          title: "Geologic Boreholes",
+          index: 1,
+        });
+      map.add(featureLayer);
+
+      function getFields(fields){
+        console.log(fields);
+        fd = fields.graphic.attributes;
+        console.log(fd);
+        var fields = "Under construction: clean up this list and format it pretty.<br><br>";
+        $.each(fd, function(i, f){
+        //dojo.forEach(fd, function(f){
+          console.log(i + ": " + f);
+          fields += i + ": " + f + "<br>";
+        });
+        return fields;
+      }
+        
+      var popupTemplate = {
+            // autocasts as new PopupTemplate()
+            outFields: ["*"], 
+            title: "<b>Borehole Information<b>",
+            content: getFields
+            //"Project ID: {projectid} <br> Exploration ID: {boreid} <br> Exploration Date: {date_completed} <br> Exploration Company {consultant} <br> Exploration Equipment {exploration_equiptment} <br>Exploration Report: <a href='{report_url}'>{report_url}</a>" +
+            //"objectid: {objectid} <br> ugs_gdid: {ugs_gdid} <br> consultant : {consultant } <br> udot_pin: {udot_pin} <br> project_name: {project_name} <br> latitude: {latitude} <br> longitude: {longitude} <br> coordinate_source: {coordinate_source} <br> elevation_ft: {elevation_ft} <br> field: {field} <br> field: {field} <br> field: {field} <br> field: {field} <br> field: {field} <br> field: {field} <br> field: {field} <br>"
+      }
+      featureLayer.popupTemplate = popupTemplate;
+
+
+
+      // zoom to the extent of all features
+      featureLayer
+      .when(function() {
+        return featureLayer.queryExtent();
+      })
+      .then(function(response) {
+        mapView.goTo(response.extent);
+      });
+
+
+
+
+      // Popup and panel sync
+      mapView.when(function(){
+        CalciteMapArcGISSupport.setPopupPanelSync(mapView);
+      });
+      // Search - add to navbar
+      var searchWidget = new Search({
+        container: "searchWidgetDiv",
+        view: mapView,
+        includeDefaultSources: false,	// suppress auto locator (search places appears as a default)
+        locationEnabled: false,  //default true
+        minSuggestCharacters: 3,    //start giving suggestions at 2
+        maxSuggestions: 20,
+        maxResults: 30,     //default 6
+        searchAllEnabled: false,   //default is true
+        sources: [{
+              layer: new FeatureLayer({
+                  url: "https://webmaps.geology.utah.gov/arcgis/rest/services/Hazards/Boreholes/MapServer/0",
+              }),
+              autoNavigate: false,	//don't auto zoom in on the feature  //default true
+              searchFields: ["objectid"],
+              displayField: "objectid",
+              name: "Borehole ID/ Project Name",
+              outFields: ["boreid", "project_name", "projectid"],     //must be here, not in featurelayer
+              placeholder: "example: 041734_TH-1, Jarman Subdivision",
+              popupEnabled: false,
+              //resultSymbol: fillSymbol,
+          }]
+
+      });
+
+
+      CalciteMapArcGISSupport.setSearchExpandEvents(searchWidget);
+      // Map widgets
+      var home = new Home({
+        view: mapView
+      });
+      mapView.ui.add(home, "top-left");
+      var zoom = new Zoom({
+        view: mapView
+      });
+      mapView.ui.add(zoom, "top-left");
+      var compass = new Compass({
+        view: mapView
+      });
+      mapView.ui.add(compass, "top-left");
+      
+      var basemapToggle = new BasemapToggle({
+        view: mapView,
+        secondBasemap: "satellite"
+      });
+      mapView.ui.add(basemapToggle, "bottom-right");          
+      
+      var scaleBar = new ScaleBar({
+        view: mapView
+      });
+      mapView.ui.add(scaleBar, "bottom-left");
+      var attribution = new Attribution({
+        view: mapView
+      });
+      mapView.ui.add(attribution, "manual");
+
+      // Panel widgets - add legend
+      var legendWidget = new Legend({
+        container: "legendDiv",
+        view: mapView
+      });
+
+      // Panel widgets - add layers
+      var legendWidget = new LayerList({
+        container: "layersDiv",
+        view: mapView
+      });
+      
+      /* have legend always open?
+      var legend = new Legend({
+        view: mapView,
+        layerInfos: [{
+          layer: featureLayer,
+          title: "Legend"
+        }]
+      });
+      mapView.ui.add(legend, "bottom-left"); 
+      */
+
+
+
+    });
+  </script>
+
+  <!-- jQuery (for Bootstrap's JavaScript plugins). NOTE: You can also use pure Dojo. See examples. -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+
+</body>
+</html>
