@@ -9,13 +9,13 @@ borehole=r"C:\Users\marthajensen\AppData\Roaming\ESRI\Desktop10.7\ArcCatalog\sde
 ####################Count existing records ########################################
 count=arcpy.GetCount_management(in_rows=borehole)
 
-print ("The count of borehole locations is now " + str(count))
+print ("The count of existing borehole locations is " + str(count))
 
 count1=arcpy.GetCount_management(in_rows=sample)
-print("The count of samples is now " + str(count1))
+print("The count of existing samples is " + str(count1))
 
 count2=arcpy.GetCount_management(in_row=unit)
-print("The count of units is now " + str(count2))
+print("The count of existing units is " + str(count2))
 
 ###############################################Truncate#########################################
 
