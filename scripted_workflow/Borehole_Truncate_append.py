@@ -14,7 +14,7 @@ print ("The count of existing borehole locations is " + str(count))
 count1=arcpy.GetCount_management(in_rows=sample)
 print("The count of existing samples is " + str(count1))
 
-count2=arcpy.GetCount_management(in_row=unit)
+count2=arcpy.GetCount_management(in_rows=unit)
 print("The count of existing units is " + str(count2))
 
 ###############################################Truncate#########################################
@@ -50,5 +50,5 @@ print ("The count of borehole locations is now " + str(count3))
 count4=arcpy.GetCount_management(in_rows=sample)
 print("The count of samples is now " + str(count4))
 
-count5=arcpy.GetCount_management(in_row=unit)
+count5=arcpy.GetCount_management(in_rows=unit)
 print("The count of units is now " + str(count5))
