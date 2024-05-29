@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "default": "ut-dnr-ugs-borehole-prod",
+    "prod": "ut-dnr-ugs-borehole-prod"
+  },
+  "targets": {},
+  "etags": {},
+  "dataconnectEmulatorConfig": {}
+}
