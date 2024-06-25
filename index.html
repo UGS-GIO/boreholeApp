@@ -60,6 +60,12 @@
       padding: 4px;
     }
 
+    .calcite-title:before {
+      content: url('https://geology.utah.gov/apps/_ugsmaptemplate/logo_main.png');
+      padding: 6px 12px 0 2px;
+      cursor: pointer;
+    }
+
     .esri-feature__content-element {
         padding: 0 0 0 0;
     }
@@ -143,7 +149,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- Title -->
     <div class="calcite-title calcite-overflow-hidden">
         <!-- <div id="logo"><a href="https://geology.utah.gov"><img src="https://geology.utah.gov/apps/wetlands/logo.png" style="width:34px"></a></div>  -->
-        <span class="calcite-title-main"><a href="https://geology.utah.gov">Utah Geological Survey</a></span>
+        <span class="calcite-title-main" style="color: white;">
+          <a href="https://geology.utah.gov" style="color: white;">Utah Geological Survey</a>
+        </span>
+        
         <span class="calcite-title-divider hidden-xs"></span>
         <span class="calcite-title-sub hidden-xs" id="subTitle"> </span>
         <span class="calcite-title-sub hidden-xs" id="subTitle">Subsurface Geotechnical Database</span>
