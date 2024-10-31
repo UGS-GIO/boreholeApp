@@ -24,7 +24,7 @@
   <!--link rel="stylesheet" href="http://localhost/GitHub/calcite-maps/dist/css/calcite-maps-arcgis-4.x.min-v0.10.css"-->
 
   <!-- ArcGIS JS 4 -->
-  <link rel="stylesheet" href="https://js.arcgis.com/4.13/esri/css/main.css">
+  <link rel="stylesheet" href="https://js.arcgis.com/4.21/esri/css/main.css">
    <!-- Boilerplate Template Syle sheet -->
    <link rel="stylesheet" href="/apps/_ugsmaptemplate/template.css">
 
@@ -274,7 +274,7 @@
   </script>
 
   <!-- ArcGIS JS 4 -->
-  <script src="https://js.arcgis.com/4.13/"></script>
+  <script src="https://js.arcgis.com/4.21/"></script>
 
   <script>
     
@@ -293,9 +293,10 @@
       "esri/widgets/Fullscreen",
       "esri/layers/FeatureLayer",
       "esri/symbols/SimpleMarkerSymbol",
-      "esri/tasks/QueryTask",
-      "esri/tasks/support/Query",
-      "esri/tasks/support/RelationshipQuery",
+      "esri/layers/WFSLayer",
+      // "esri/tasks/QueryTask",
+      // "esri/tasks/support/Query",
+      // "esri/tasks/support/RelationshipQuery",
       "esri/layers/TileLayer",
       "esri/widgets/ScaleBar",
       "esri/widgets/Attribution",
@@ -312,7 +313,7 @@
       // Calcite Maps ArcGIS Support
       "calcite-maps/calcitemaps-arcgis-support-v0.10",
       "dojo/domReady!"
-    ], function(WebMap, MapView, Home, Zoom, Compass, Search, Legend, LayerList, BasemapToggle, Fullscreen, FeatureLayer, SimpleMarkerSymbol, QueryTask, Query, RelationshipQuery, TileLayer, ScaleBar, Attribution, watchUtils, Grid, query, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport) {
+    ], function(WebMap, MapView, Home, Zoom, Compass, Search, Legend, LayerList, BasemapToggle, Fullscreen, FeatureLayer, SimpleMarkerSymbol, WFSLayer, TileLayer, ScaleBar, Attribution, watchUtils, Grid, query, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport) {
       /******************************************************************
        *
        * Create the map, view and widgets
@@ -358,7 +359,8 @@
       // ------------------------------------ load map layers -------------------------------------
 
 
-      var mapLayer = new TileLayer("https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer", {
+      var mapLayer = new TileLayer({
+            url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
             id: "24k",
             index: 0,
             opacity: 0.7,
@@ -371,52 +373,26 @@
       map.add(mapLayer);
       
 
-      const renderer = {			
-        type: "unique-value",  // autocasts as new UniqueValueRenderer()
-        field: "exploration_method", 
-        uniqueValueInfos: [
-          {value:"Drill", label:"Drill", symbol:{type:"simple-fill", color: [235,188,81, 0.6], style: "solid", outline: {color: [128, 128, 128, 0.6], width: 1.5}}},
-          {value:"Excavation", label:"Trench", symbol:{type:"simple-fill", color: [255,51,51, 0.6], style: "solid", outline: {color: [128, 128, 128, 0.6], width: 1.5}}},
-          {value:"CPT", label:"Cone Penetration Test", symbol:{type:"simple-fill", color: [164,197,91, 0.6], style: "solid", outline: {color: [128, 128, 128, 0.6], width: 1.5}}}
-        ]
-      };
+      const renderer = {
+  type: "unique-value",  // autocasts as new UniqueValueRenderer()
+  field: "exploration_method", 
+  uniqueValueInfos: [
+    {value:"Drill", label:"Drill", symbol:{type:"simple-marker", color: [255, 0, 0], style: "circle", outline: {width: 0}, size: 6}},  // Solid Red
+    {value:"Excavation", label:"Trench", symbol:{type:"simple-marker", color: [0, 0, 255], style: "circle", outline: {width: 0}, size: 6}},  // Solid Blue
+    {value:"CPT", label:"Cone Penetration Test", symbol:{type:"simple-marker", color: [128, 0, 128], style: "circle", outline: {width: 0}, size: 6}}  // Solid Purple
+  ]
+};
 
 
-      var layer = new FeatureLayer({
-          url: "https://webmaps.geology.utah.gov/arcgis/rest/services/Hazards/Boreholes/MapServer/0",
+      var layer = new WFSLayer({
+          url: "https://ugs-geoserver-prod-flbcoqv7oa-uc.a.run.app/geoserver/wfs",
+          name: "borehole_locations",
+          namespaceUri: "hazards",
+          id: "locations",
+          outFields: ["*"],
           opacity: 0.8,
           title: "Geotechnical Explorations",
-          //renderer: renderer,
-          id: 1,
-          index: 1,
-          sublayers: [
-            {
-              title: "Borehole Related Tables",
-              id: 2,
-              opacity: 0.75,
-              source: {
-                type: "data-layer",
-                dataSource: {
-                  type: "join-table",
-                  leftTableSource: {
-                    type: "map-layer",
-                    mapLayerId: 1
-                  },
-                  rightTableSource: {
-                    type: "data-layer",
-                    dataSource: {
-                      type: "table",
-                      workspaceId: "ugshazards.sde.borehole_unit_table",
-                      dataSourceName: "unit_table"
-                    }
-                  },
-                  leftTableKey: "boreid",
-                  rightTableKey: "boreid ",
-                  joinType: "left-outer-join"
-                }
-              },
-            } 
-          ] 
+          renderer: renderer,
         });
       map.add(layer);
 
@@ -870,23 +846,37 @@ function queryRelated(id) {
           });
       });
 
-      // get the number of visible features on view move
-      mapView.watch("interacting", function(extent){
-        var query = new Query();  
-        query.geometry = mapView.extent.extent;  
-        query.returnGeometry = false;
-        query.outFields = [];
-        query.returnExceededLimitFeatures = true;  //not working still only 1000 max
-        layer.queryFeatures(query).then(function(results){
-          //console.log("number of visible features");
-          //console.log(results.features.length);
-          (results.features.length >= 1000)
-            ? count = "More than 1000"
-            : count = results.features.length;
-          document.getElementById('statsDiv').innerHTML = "Visible Feature Count = "+count;
-        });
+// Watching for map extent changes and updating feature count
+mapView.watch(["extent", "stationary"], function() {
+  // Only query when the view is stationary to prevent excessive requests
+  if (!mapView.stationary) {
+    return;
+  }
 
-      });  
+  // Create query parameters for visible features
+  const query = {
+    where: "1=1",  // Return all features
+    geometry: mapView.extent,
+    spatialRelationship: "intersects",
+    outFields: ["*"],
+    returnGeometry: false,
+    returnCountOnly: true  // More efficient than returning features
+  };
+
+  // Query the WFS layer
+  layer.queryFeatureCount(query)
+    .then(function(count) {
+      let displayCount = count;
+      if (count >= 1000) {
+        displayCount = "More than 1000";
+      }
+      document.getElementById('statsDiv').innerHTML = "Visible Feature Count = " + displayCount;
+    })
+    .catch(function(error) {
+      console.error("Error getting feature count:", error);
+      document.getElementById('statsDiv').innerHTML = "Feature Count Unavailable";
+    });
+});
 
 
       /*
@@ -984,8 +974,12 @@ function queryRelated(id) {
         maxResults: 30,     //default 6
         searchAllEnabled: false,   //default is true
         sources: [{
-              layer: new FeatureLayer({
-                  url: "https://webmaps.geology.utah.gov/arcgis/rest/services/Hazards/Boreholes/MapServer/0",
+              layer: new WFSLayer({
+                url: "https://ugs-geoserver-prod-flbcoqv7oa-uc.a.run.app/geoserver/wfs",
+          name: "borehole_locations",
+          namespaceUri: "hazards",
+          id: "locations",
+          outFields: ["*"],
               }),
               autoNavigate: true,	//don't auto zoom in on the feature  //default true
               searchFields: ["boreid", "project_name", "projectid"],
