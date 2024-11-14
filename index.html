@@ -24,7 +24,7 @@
   <!--link rel="stylesheet" href="http://localhost/GitHub/calcite-maps/dist/css/calcite-maps-arcgis-4.x.min-v0.10.css"-->
 
   <!-- ArcGIS JS 4 -->
-  <link rel="stylesheet" href="https://js.arcgis.com/4.13/esri/css/main.css">
+  <link rel="stylesheet" href="https://js.arcgis.com/4.21/esri/css/main.css">
    <!-- Boilerplate Template Syle sheet -->
    <link rel="stylesheet" href="/apps/_ugsmaptemplate/template.css">
 
@@ -274,7 +274,7 @@
   </script>
 
   <!-- ArcGIS JS 4 -->
-  <script src="https://js.arcgis.com/4.13/"></script>
+  <script src="https://js.arcgis.com/4.21/"></script>
 
   <script>
     
@@ -293,9 +293,10 @@
       "esri/widgets/Fullscreen",
       "esri/layers/FeatureLayer",
       "esri/symbols/SimpleMarkerSymbol",
-      "esri/tasks/QueryTask",
-      "esri/tasks/support/Query",
-      "esri/tasks/support/RelationshipQuery",
+      "esri/layers/WFSLayer",
+      // "esri/tasks/QueryTask",
+      // "esri/tasks/support/Query",
+      // "esri/tasks/support/RelationshipQuery",
       "esri/layers/TileLayer",
       "esri/widgets/ScaleBar",
       "esri/widgets/Attribution",
@@ -312,7 +313,7 @@
       // Calcite Maps ArcGIS Support
       "calcite-maps/calcitemaps-arcgis-support-v0.10",
       "dojo/domReady!"
-    ], function(WebMap, MapView, Home, Zoom, Compass, Search, Legend, LayerList, BasemapToggle, Fullscreen, FeatureLayer, SimpleMarkerSymbol, QueryTask, Query, RelationshipQuery, TileLayer, ScaleBar, Attribution, watchUtils, Grid, query, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport) {
+    ], function(WebMap, MapView, Home, Zoom, Compass, Search, Legend, LayerList, BasemapToggle, Fullscreen, FeatureLayer, SimpleMarkerSymbol, WFSLayer, TileLayer, ScaleBar, Attribution, watchUtils, Grid, query, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport) {
       /******************************************************************
        *
        * Create the map, view and widgets
@@ -358,7 +359,8 @@
       // ------------------------------------ load map layers -------------------------------------
 
 
-      var mapLayer = new TileLayer("https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer", {
+      var mapLayer = new TileLayer({
+            url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
             id: "24k",
             index: 0,
             opacity: 0.7,
@@ -371,52 +373,26 @@
       map.add(mapLayer);
       
 
-      const renderer = {			
-        type: "unique-value",  // autocasts as new UniqueValueRenderer()
-        field: "exploration_method", 
-        uniqueValueInfos: [
-          {value:"Drill", label:"Drill", symbol:{type:"simple-fill", color: [235,188,81, 0.6], style: "solid", outline: {color: [128, 128, 128, 0.6], width: 1.5}}},
-          {value:"Excavation", label:"Trench", symbol:{type:"simple-fill", color: [255,51,51, 0.6], style: "solid", outline: {color: [128, 128, 128, 0.6], width: 1.5}}},
-          {value:"CPT", label:"Cone Penetration Test", symbol:{type:"simple-fill", color: [164,197,91, 0.6], style: "solid", outline: {color: [128, 128, 128, 0.6], width: 1.5}}}
-        ]
-      };
+      const renderer = {
+  type: "unique-value",  // autocasts as new UniqueValueRenderer()
+  field: "exploration_method", 
+  uniqueValueInfos: [
+    {value:"Drill", label:"Drill", symbol:{type:"simple-marker", color: [255, 0, 0], style: "circle", outline: {width: 0}, size: 6}},  // Solid Red
+    {value:"Excavation", label:"Trench", symbol:{type:"simple-marker", color: [0, 0, 255], style: "circle", outline: {width: 0}, size: 6}},  // Solid Blue
+    {value:"CPT", label:"Cone Penetration Test", symbol:{type:"simple-marker", color: [128, 0, 128], style: "circle", outline: {width: 0}, size: 6}}  // Solid Purple
+  ]
+};
 
 
-      var layer = new FeatureLayer({
-          url: "https://webmaps.geology.utah.gov/arcgis/rest/services/Hazards/Boreholes/MapServer/0",
+      var layer = new WFSLayer({
+          url: "https://ugs-geoserver-prod-flbcoqv7oa-uc.a.run.app/geoserver/wfs",
+          name: "borehole_locations",
+          namespaceUri: "hazards",
+          id: "locations",
+          outFields: ["*"],
           opacity: 0.8,
           title: "Geotechnical Explorations",
-          //renderer: renderer,
-          id: 1,
-          index: 1,
-          sublayers: [
-            {
-              title: "Borehole Related Tables",
-              id: 2,
-              opacity: 0.75,
-              source: {
-                type: "data-layer",
-                dataSource: {
-                  type: "join-table",
-                  leftTableSource: {
-                    type: "map-layer",
-                    mapLayerId: 1
-                  },
-                  rightTableSource: {
-                    type: "data-layer",
-                    dataSource: {
-                      type: "table",
-                      workspaceId: "ugshazards.sde.borehole_unit_table",
-                      dataSourceName: "unit_table"
-                    }
-                  },
-                  leftTableKey: "boreid",
-                  rightTableKey: "boreid ",
-                  joinType: "left-outer-join"
-                }
-              },
-            } 
-          ] 
+          renderer: renderer,
         });
       map.add(layer);
 
@@ -567,300 +543,257 @@
 
       // query all three tables to get ALLLLLL the related data
       // when user clicks on 'get sample data' in the popup
-      function queryRelated(id){
+// Modified queryRelated function using fetch
+function queryRelated(id) {
+  const headers = {
+    'Accept-Profile': 'boreholes'
+  };
 
-        // #1 get the rest of the data from the main table ----------------------------
-        var queryTask = new QueryTask({
-            url: "https://webmaps.geology.utah.gov/arcgis/rest/services/Hazards/Boreholes/MapServer/0",
-          });
-          var query = new Query();
-            query.returnGeometry = false;
-            query.outFields = ["*"];
-            query.where = "boreid = '"+id+"'" ;  
-            // boreid= '4758_TH-4'
+  // #1 get the rest of the data from the main table ----------------------------
+  fetch(`https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app/borehole_locations?boreid=eq.${id}`, {
+    headers: headers
+  })
+    .then(response => response.json())
+    .then(results => {
+      if (results.length === 0) return;
+      
+      console.log(results[0]);  // equivalent to previous results.features[0].attributes
+      var fields = "";
+      var att = results[0];  // data comes directly as attributes now
 
-          // When resolved, returns features and graphics that satisfy the query.
-          queryTask.execute(query).then(function(results){
-              console.log(results.features[0].attributes);  //results.features
-              var fields = "";
-              var ftr = results.features[0];
+      if (att.projectid) {
+        fields += "<span class='field-heading'>Project ID: </span><span class='field-data'>" + att.projectid + "</span><br>";
+      }
+      if (att.udot_pin) {
+        fields += "<span class='field-heading'>UDOT Pin: </span><span class='field-data'>" + att.udot_pin + "</span><br>";
+      }
+      if (att.exploration_type) {
+        fields += "<span class='field-heading'>Exploration Type: </span><span class='field-data'>" + att.exploration_type + "</span><br>";
+      }
+      if (att.exploration_equiptment) {
+        fields += "<span class='field-heading'>Exploration Equipment: </span><span class='field-data'>" + att.exploration_equiptment + "</span><br>";
+      }
+      if (att.hammer_type) {
+        fields += "<span class='field-heading'>SPT Hammer Type: </span><span class='field-data'>" + att.hammer_type + "</span><br>";
+      }
+      if (att.coordinate_source) {
+        fields += "<span class='field-heading'>Coordinate Source: </span><span class='field-data'>" + att.coordinate_source + "</span><br>";
+      }
+      if (att.elevation_source) {
+        fields += "<span class='field-heading'>Elevation Source: </span><span class='field-data'>" + att.elevation_source + "</span><br>";
+      }
+      if (att.enteredby) {
+        fields += "<span class='field-heading'>Entered By: </span><span class='field-data'>" + att.enteredby + "</span><br>";
+      }
+      if (att.ugs_gdid) {
+        fields += "<span class='field-heading'>UGS GID: </span><span class='field-data'>" + att.ugs_gdid + "</span><br>";
+      }
+      if (att.boreid) {
+        fields += "<span class='field-heading'>BoreID: </span><span class='field-data'>" + att.boreid + "</span><br>";
+      }
+      if (att.notes) {
+        fields += "<span class='field-heading'>Exploration Notes: </span><span class='field-data'>" + att.notes + "</span><br>";
+      }
+      fields += "<br>";
 
-              var att = ftr.attributes;
-              if (att.projectid){
-                fields += "<span class='field-heading'>Project ID: </span><span class='field-data'>" + att.projectid + "</span><br>";
-              }
-              if (att.udot_pin){
-                fields += "<span class='field-heading'>UDOT Pin: </span><span class='field-data'>" + att.udot_pin + "</span><br>";
-              }
-              if (att.exploration_type){
-                fields += "<span class='field-heading'>Exploration Type: </span><span class='field-data'>" + att.exploration_type + "</span><br>";
-              }
-              if (att.exploration_equiptment){
-                fields += "<span class='field-heading'>Exploration Equipment: </span><span class='field-data'>" + att.exploration_equiptment + "</span><br>";
-              }
-              if (att.hammer_type){
-                fields += "<span class='field-heading'>SPT Hammer Type: </span><span class='field-data'>" + att.hammer_type + "</span><br>";
-              }
-              if (att.coordinate_source){
-                fields += "<span class='field-heading'>Coordinate Source: </span><span class='field-data'>" + att.coordinate_source + "</span><br>";
-              }
-              if (att.elevation_source){
-                fields += "<span class='field-heading'>Elevation Source: </span><span class='field-data'>" + att.elevation_source + "</span><br>";
-              }
-              if (att.enteredby){
-                fields += "<span class='field-heading'>Entered By: </span><span class='field-data'>" + att.enteredby + "</span><br>";
-              }
-              if (att.ugs_gdid){
-                fields += "<span class='field-heading'>UGS GID: </span><span class='field-data'>" + att.ugs_gdid + "</span><br>";
-              }
-              if (att.boreid){
-                fields += "<span class='field-heading'>BoreID: </span><span class='field-data'>" + att.boreid + "</span><br>";
-              }
-              if (att.notes){
-                fields += "<span class='field-heading'>Exploration Notes: </span><span class='field-data'>" + att.notes + "</span><br>";
-              }
-              fields += "<br>";
+      showHideCalcitePanels("#panelData", "#collapseData");
+      $('#projectDetails').empty();
+      $('#projectDetails').append(fields);
+    })
+    .catch(error => console.error('Error fetching main table data:', error));
 
-              showHideCalcitePanels("#panelData", "#collapseData");
-              $('#projectDetails').empty();
-              $('#projectDetails').append(fields);
-          })
+  // #2 get the UNIT DATA ----------------------------
+  fetch(`https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app/borehole_unit_table?boreid=eq.${id}`, {
+    headers: headers
+  })
+    .then(response => response.json())
+    .then(results => {
+      var fields = "";
 
+      // total number of units
+      console.log("UNIT DATA RESULTS");
+      console.log(results);
+      fields += "<span class='field-heading'>Total Units: </span> <span class='field-data'>" + results.length + " </span><br>";
 
-          // #2 get the UNIT DATA ----------------------------
-          var queryTask = new QueryTask({
-            url: "https://webmaps.geology.utah.gov/arcgis/rest/services/Hazards/Boreholes/MapServer/1",
-          });
-          var query = new Query();
-            query.returnGeometry = false;
-            query.outFields = ["*"];
-            query.where = "boreid = '"+id+"'" ;  
-            // boreid= '4758_TH-4'
+      // uscs organizations
+      var orgs = results.map(result => result.uscs);
+      fields += "<span class='field-heading'>USCS Identified: </span> <span class='field-data'>" + orgs.join(", ") + " </span><br>";
+      
+      // max depth
+      var maxarray = results.map(result => Number(result.lowerdepth));
+      var maxdp = Math.max(...maxarray.filter(n => !isNaN(n)));
+      fields += "<span class='field-heading'>Maximum Depth: </span> <span class='field-data'>" + maxdp + " ft</span><br>";
 
-          // When resolved, returns features and graphics that satisfy the query.
-          queryTask.execute(query).then(function(results){
-              //console.log(results.features);  //results.features
-              var fields = "";
+      $('#unitData').empty();
+      $('#unitData').append(fields);
 
-              // total number of units
-              console.log("UNIT DATA RESULTS");
-              console.log(results.features);
-              fields += "<span class='field-heading'>Total Units: </span> <span class='field-data'>" + results.features.length + " </span><br>";
+      var fields2 = "<br>";
+      
+      results.forEach(att => {
+        fields2 += "<div class='ibox'>";
+        if (att.unitname) {
+          fields2 += "<span class='field-heading-sm'>Unit Name: </span> <span class='field-data-sm'>" + check(att.unitname) + " | </span>";
+        }
+        if (att.upperdepth || att.lowerdepth) {
+          if (att.upperdepth == 0) att.upperdepth = "0";
+          fields2 += "<span class='field-heading-sm'>Unit Thickness: </span> <span class='field-data-sm'>" + check(att.upperdepth) + "-" + check(att.lowerdepth) + "ft | </span>";
+        }
+        if (att.uscs) {
+          fields2 += "<span class='field-heading-sm'>USCS: </span> <span class='field-data-sm'>" + att.uscs + " | </span>";
+        }
+        if (att.fieldmoisture) {
+          fields2 += "<span class='field-heading-sm'>Moisture: </span> <span class='field-data-sm'>" + att.fieldmoisture + " | </span>";
+        }
+        if (att.fieldcolor) {
+          fields2 += "<span class='field-heading-sm'>Color: </span> <span class='field-data-sm'>" + att.fieldcolor + " | </span>";
+        }
+        if (att.fielddensity) {
+          fields2 += "<span class='field-heading-sm'>Density: </span> <span class='field-data-sm'>" + att.fielddensity + " | </span>";
+        }
+        if (att.fieldconsistency) {
+          fields2 += "<span class='field-heading-sm'>Consistency: </span> <span class='field-data-sm'>" + att.fieldconsistency + " | </span>";
+        }
+        if (att.notes) {
+          fields2 += "<span class='field-heading-sm'>Unit Notes: </span> <span class='field-data-sm'>" + check(att.notes) + " </span><br>";
+        }
+        fields2 += "</div>";
+        fields2 += "<br>";
+      });
+      
+      $('#unitDataExpand').empty();
+      $('#unitDataExpand').append(fields2);
+    })
+    .catch(error => console.error('Error fetching unit data:', error));
 
-              // uscs organizations
-              var orgs =  $.map(results.features, function(ftr, i){
-                        return ftr.attributes.uscs;
-                    });
-              fields += "<span class='field-heading'>USCS Identified: </span> <span class='field-data'>" + orgs.join(", ") + " </span><br>";
-              
-              // max depth
-              var maxarray =  $.map(results.features, function(ftr, i){
-                        return Number(ftr.attributes.lowerdepth);
-                    });
-              //console.log(maxarray);
-              var maxdp = Math.max.apply(Math, maxarray.map(function(n) { return n; }))
-              fields += "<span class='field-heading'>Maximum Depth: </span> <span class='field-data'>" + maxdp + " ft</span><br>";
+  // #3 get the BORE SAMPLE DATA ----------------------------
+  fetch(`https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app/borehole_sample_table?boreid=eq.${id}`, {
+    headers: headers
+  })
+    .then(response => response.json())
+    .then(results => {
+      console.log(results);
+      var fields = "";
 
-              $('#unitData').empty();
-              $('#unitData').append(fields);
+      // total number of samples
+      fields += "<span class='field-heading'>Total Samples: </span> <span class='field-data'>" + results.length + " </span><br>";
 
-              var fields2 = "<br>";
-              
-              $.each(results.features, function(i, ftr){
-                                    
-                  var att = ftr.attributes;
-                  fields2 += "<div class='ibox'>";
-                  if (att.unitname){
-                        fields2 += "<span class='field-heading-sm'>Unit Name: </span> <span class='field-data-sm'>"+check(att.unitname)+" | </span>";
-                  }
-                  if (att.upperdepth || att.lowerdepth){
-                        if (att.upperdepth == 0) att.upperdepth = "0";  //change from integer to text so its not ignored
-                        fields2 += "<span class='field-heading-sm'>Unit Thickness: </span> <span class='field-data-sm'>"+check(att.upperdepth)+"-"+check(att.lowerdepth)+"ft | </span>";
-                  }
-                  if (att.uscs){
-                        fields2 += "<span class='field-heading-sm'>USCS: </span> <span class='field-data-sm'>"+att.uscs+" | </span>";
-                  }
-                  if (att.fieldmoisture){
-                        fields2 += "<span class='field-heading-sm'>Moisture: </span> <span class='field-data-sm'>"+att.fieldmoisture+" | </span>";
-                  }
-                  if (att.fieldcolor){
-                        fields2 += "<span class='field-heading-sm'>Color: </span> <span class='field-data-sm'>"+att.fieldcolor+" | </span>";
-                  }
-                  if (att.fielddensity){
-                        fields2 += "<span class='field-heading-sm'>Density: </span> <span class='field-data-sm'>"+att.fielddensity+" | </span>";
-                  }
-                  if (att.fieldconsistency){
-                        fields2 += "<span class='field-heading-sm'>Consistency: </span> <span class='field-data-sm'>"+att.fieldconsistency+" | </span>";
-                  }
-                  /*
-                  if (att.upperdepth){
-                        fields2 += "<span class='field-heading-sm'>Unit Thickness: </span> <span class='field-data-sm'>"+check(att.upperdepth)+"-"+check(att.lowerdepth)+"ft | "+check(att.uscs)+" | "+
-                          check(att.unitname)+" | "+check(att.fieldmoisture)+" | "+check(att.fieldcolor)+" | "+check(att.fielddensity)+" | "+check(att.fieldconsistency)+" </span><br>";
-                  }
-                  */
-                  if (att.notes){
-                        fields2 += "<span class='field-heading-sm'>Unit Notes: </span> <span class='field-data-sm'>"+check(att.notes)+" </span><br>";
-                  }
-                  fields2 += "</div>";
-                  fields2 += "<br>";
+      // sample types
+      var orgs = [...new Set(results.map(result => result.samplemethod))];
+      fields += "<span class='field-heading'>Sample Types: </span> <span class='field-data'>" + orgs.join(", ") + " </span><br>";
 
-              })
-              
-              $('#unitDataExpand').empty();
-              $('#unitDataExpand').append(fields2);
-          })
+      // max/min N values
+      var maxarray = results.map(result => Number(result.nvalue));
+      var max = Math.max(...maxarray.filter(n => !isNaN(n)));
+      var min = Math.min(...maxarray.filter(n => !isNaN(n)));
+      if (max !== 0 && Number.isFinite(max)) {
+        fields += "<span class='field-heading'>N-Value Range: </span> <span class='field-data'>" + min + "-" + max + " blows/ft</span><br>";
+      }
 
+      // Check for grain size data
+      var yesNo = results.some(result => 
+        result.gravel_percent || result.sand_percent || result.fines_percent
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Contains Grain Size %: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-          // #3 get the BORE SAMPLE DATA ----------------------------
-          var queryTask = new QueryTask({
-            url: "https://webmaps.geology.utah.gov/arcgis/rest/services/Hazards/Boreholes/MapServer/2",
-          });
-          var query = new Query();
-            query.returnGeometry = false;
-            query.outFields = ["*"];
-            query.where = "boreid = '"+id+"'" ;  
-            // boreid= '4758_TH-4'
+      // Check for moisture/density data
+      yesNo = results.some(result =>
+        result.labmoisture_percent || result.labdrydensity_pcf
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Moisture or Density Results: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-          // When resolved, returns features and graphics that satisfy the query.
-          queryTask.execute(query).then(function(results){
-              console.log(results.features);  //results.features
-              var fields = "";
+      // Check for Atterberg limits
+      yesNo = results.some(result =>
+        result.pl || result.ll
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Contains Atterberg Limits: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-              // total number of samples
-              console.log(results.features.attributes);
-              fields += "<span class='field-heading'>Total Samples: </span> <span class='field-data'>" + results.features.length + " </span><br>";
+      // Check for soil consolidation data
+      yesNo = results.some(result =>
+        result.sct_dry || result.sct
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Soil Consolidation % Range: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-              // sample types
-              var orgs =  $.map(results.features, function(ftr, i){
-                        return ftr.attributes.samplemethod;
-                    });
-              var orgs = [...new Set(orgs)];  // ES6 shortcode to reduce to ONLY distinct value
-              fields += "<span class='field-heading'>Sample Types: </span> <span class='field-data'>" + orgs.join(", ") + " </span><br>";
+      // Check for shear data
+      yesNo = results.some(result =>
+        result.shear_type || result.shearangle_degree || result.shearcohesion_psi
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Contains Shear Data: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-              // max/min  (only show N value if its a drill cutting NOT on trench or penetration test)  Exploration_Method == 'Drill'
-              //console.log(results.features);
-              //if (results.features.attributes.nvalue !== null && results.features.attributes.nvalue !==0){
-              var maxarray =  $.map(results.features, function(ftr, i){
-                        return Number(ftr.attributes.nvalue);
-                    });
-              var max = Math.max.apply(Math, maxarray.map(function(n) { return n; }))
-              var min = Math.min.apply(Math, maxarray.map(function(n) { return n; }))
-              if (max !== 0 && Number.isFinite(max)){
-              fields += "<span class='field-heading'>N-Value Range: </span> <span class='field-data'>" + min + "-" + max + " blows/ft</span><br>";
-              }
+      // Check for chemical data
+      yesNo = results.some(result =>
+        result.resistivity_ohm_cm || result.chlorides_ppm || result.organics_percent_weight || result.ph
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Contains Chemical Results: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-              var yesNo = "No Data";
-              //$.each(results.features, function(i, ftr){
-              yesNo = results.features.some(function(ftr){
-                  return (ftr.attributes.gravel_percent || ftr.attributes.sand_percent || ftr.attributes.fines_percent)
-              });
-              yesNo = (yesNo) ? "Yes" : "No Data";
-              fields += "<span class='field-heading'>Contains Grain Size %: </span> <span class='field-data'>" + yesNo + "</span><br>";
+      // Check for notes
+      yesNo = results.some(result => result.notes);
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Sample Notes: </span> <span class='field-data'>" + yesNo + "</span>";
 
-              //$.each(results.features, function(i, ftr){
-              yesNo = results.features.some(function(ftr){
-                return (ftr.attributes.labmoisture_percent || ftr.attributes.labdrydensity_pcf);
-              });
-              yesNo = (yesNo) ? "Yes" : "No Data";
-              fields += "<span class='field-heading'>Moisture or Density Results: </span> <span class='field-data'>" + yesNo + "</span><br>";
+      fields += "<br>";
+      $('#samplingData').empty();
+      $('#samplingData').append(fields);
 
-              //$.each(results.features, function(i, ftr){
-              yesNo = results.features.some(function(ftr){
-                return (ftr.attributes.pl || ftr.attributes.pl || ftr.attributes.ll);
-              });
-              yesNo = (yesNo) ? "Yes" : "No Data";
-              fields += "<span class='field-heading'>Contains Atterberg Limits: </span> <span class='field-data'>" + yesNo + "</span><br>";
+      var fields3 = "<br>";
+      results.forEach(att => {
+        fields3 += "<div class='ibox'>";
 
-              //$.each(results.features, function(i, ftr){
-              yesNo = results.features.some(function(ftr){
-                return (ftr.attributes.sct_dry || ftr.attributes.sct);
-              });
-              yesNo = (yesNo) ? "Yes" : "No Data";
-              fields += "<span class='field-heading'>Soil Consolidation % Range: </span> <span class='field-data'>" + yesNo + "</span><br>";
-
-              //$.each(results.features, function(i, ftr){
-              yesNo = results.features.some(function(ftr){
-                return (ftr.attributes.shear_type || ftr.attributes.shearangle_degree || ftr.attributes.shearcohesion_psi);
-              });
-              yesNo = (yesNo) ? "Yes" : "No Data";
-              fields += "<span class='field-heading'>Contains Shear Data: </span> <span class='field-data'>" + yesNo + "</span><br>";
-
-              //$.each(results.features, function(i, ftr){
-              yesNo = results.features.some(function(ftr){
-                return (ftr.attributes.resistivity_ohm_cm || ftr.attributes.chlorides_ppm || ftr.attributes.organics_percent_weight || ftr.attributes.ph);
-              });
-              yesNo = (yesNo) ? "Yes" : "No Data";
-              fields += "<span class='field-heading'>Contains Chemical Results: </span> <span class='field-data'>" + yesNo + "</span><br>";
-
-              //$.each(results.features, function(i, ftr){
-              yesNo = results.features.some(function(ftr){
-                return (ftr.attributes.notes);
-              });
-              yesNo = (yesNo) ? "Yes" : "No Data";
-              fields += "<span class='field-heading'>Sample Notes: </span> <span class='field-data'>" + yesNo + "</span>";
-
-              fields += "<br>";
-              $('#samplingData').empty();
-              $('#samplingData').append(fields);
-
-              
-              var fields3 = "<br>";
-              $.each(results.features, function(i, ftr){
-                  
-                  fields3 += "<div class='ibox'>";
-                  var att = ftr.attributes;
-
-                  if (att.samplenumber){
-                        fields3 += "<span class='field-heading-sm'>Sample Number: </span> <span class='field-data-sm'>" + att.samplenumber + "</span> | ";
-                  }
-                  if (att.samplelower_depth){
-                        fields3 += "<span class='field-heading-sm'>Sample Depth Range: </span> <span class='field-data-sm'>" + att.samplelower_depth +"-"+ att.sampleupperdepth + " ft</span> | ";
-                  }
-                  if (att.samplemethod){
-                        fields3 += "<span class='field-heading-sm'>Sample Method: </span> <span class='field-data-sm'>" + att.samplemethod + "</span> | ";
-                  }
-                  if (att.nvalue){
-                        fields3 += "<span class='field-heading-sm'>N Value: </span> <span class='field-data-sm'>" + att.nvalue + "</span> | ";
-                  }
-                  if (att.gravel_percent){
-                        fields3 += "<span class='field-heading-sm'>Gravel %: </span> <span class='field-data-sm'>" + att.gravel_percent + "</span> | ";
-                  }
-                  if (att.sand_percent){
-                        fields3 += "<span class='field-heading-sm'>Sand %: </span> <span class='field-data-sm'>" + att.sand_percent + "</span> | ";
-                  }
-                  if (att.fines_percent){
-                        fields3 += "<span class='field-heading-sm'>Fines %: </span> <span class='field-data-sm'>" + att.fines_percent + "</span> | ";
-                  }
-                  if (att.labmoisture){
-                        fields3 += "<span class='field-heading-sm'>Moisture: </span> <span class='field-data-sm'>" + att.labmoisture + "</span> | ";
-                  }
-                  if (att.labdrydensity){
-                        fields3 += "<span class='field-heading-sm'>Dry Density: </span> <span class='field-data-sm'>" + att.labdrydensity + "</span> | ";
-                  }
-                  if (att.ll){
-                        fields3 += "<span class='field-heading-sm'>Liquid Limit: </span> <span class='field-data-sm'>" + att.ll + "</span> | ";
-                  }
-                  if (att.pl){
-                        fields3 += "<span class='field-heading-sm'>Plastic Limit: </span> <span class='field-data-sm'>" + att.pl + "</span> | ";
-                  }
-                  if (att.pi){
-                        fields3 += "<span class='field-heading-sm'>Plasticity Index: </span> <span class='field-data-sm'>" + att.pi + "</span> | ";
-                  }
-                  if (att.sct){
-                        fields3 += "<span class='field-heading-sm'>Soil Consolidation %: </span> <span class='field-data-sm'>" + att.sct + "</span> | ";
-                  }
-
-                  if (att.sct_dry_percent){
-                        fields3 += "<span class='field-heading-sm'>Dry Soil Consolidation %: </span> <span class='field-data-sm'>" + att.sct_dry_percent + "</span> | ";
-                  }
-                  if (att.shear_type){
-                        fields3 += "<span class='field-heading-sm'>Shear Type (degrees): </span> <span class='field-data-sm'>" + att.shear_type + "</span> | ";
-                  }
-                  if (att.shearangle_degree){
-                        fields3 += "<span class='field-heading-sm'>Shear Angle: </span> <span class='field-data-sm'>" + att.shearangle_degree+ "</span> | ";
-                  }
-                  if (att.shearcohesion_psi){
-                        fields3 += "<span class='field-heading-sm'>Shear Cohesion: </span> <span class='field-data-sm'>" + att.shearcohesion_psi+ "</span> | ";
+        if (att.samplenumber) {
+          fields3 += "<span class='field-heading-sm'>Sample Number: </span> <span class='field-data-sm'>" + att.samplenumber + "</span> | ";
+        }
+        if (att.samplelower_depth) {
+          fields3 += "<span class='field-heading-sm'>Sample Depth Range: </span> <span class='field-data-sm'>" + att.samplelower_depth + "-" + att.sampleupperdepth + " ft</span> | ";
+        }
+        if (att.samplemethod) {
+          fields3 += "<span class='field-heading-sm'>Sample Method: </span> <span class='field-data-sm'>" + att.samplemethod + "</span> | ";
+        }
+        if (att.nvalue) {
+          fields3 += "<span class='field-heading-sm'>N Value: </span> <span class='field-data-sm'>" + att.nvalue + "</span> | ";
+        }
+        if (att.gravel_percent) {
+          fields3 += "<span class='field-heading-sm'>Gravel %: </span> <span class='field-data-sm'>" + att.gravel_percent + "</span> | ";
+        }
+        if (att.sand_percent) {
+          fields3 += "<span class='field-heading-sm'>Sand %: </span> <span class='field-data-sm'>" + att.sand_percent + "</span> | ";
+        }
+        if (att.fines_percent) {
+          fields3 += "<span class='field-heading-sm'>Fines %: </span> <span class='field-data-sm'>" + att.fines_percent + "</span> | ";
+        }
+        if (att.labmoisture) {
+          fields3 += "<span class='field-heading-sm'>Moisture: </span> <span class='field-data-sm'>" + att.labmoisture + "</span> | ";
+        }
+        if (att.labdrydensity) {
+          fields3 += "<span class='field-heading-sm'>Dry Density: </span> <span class='field-data-sm'>" + att.labdrydensity + "</span> | ";
+        }
+        if (att.ll) {
+          fields3 += "<span class='field-heading-sm'>Liquid Limit: </span> <span class='field-data-sm'>" + att.ll + "</span> | ";
+        }
+        if (att.pl) {
+          fields3 += "<span class='field-heading-sm'>Plastic Limit: </span> <span class='field-data-sm'>" + att.pl + "</span> | ";
+        }
+        if (att.pi) {
+          fields3 += "<span class='field-heading-sm'>Plasticity Index: </span> <span class='field-data-sm'>" + att.pi + "</span> | ";
+        }
+        if (att.sct) {
+          fields3 += "<span class='field-heading-sm'>Soil Consolidation %: </span> <span class='field-data-sm'>" + att.sct + "</span> | ";
+        }
+        if (att.sct_dry_percent) {
+          fields3 += "<span class='field-heading-sm'>Dry Soil Consolidation %: </span> <span class='field-data-sm'>" + att.sct_dry_percent + "</span> | ";
+        }
+        if (att.shear_type) {
+          fields3 += "<span class='field-heading-sm'>Shear Type (degrees): </span> <span class='field-data-sm'>" + att.shear_type + "</span> | ";
+        }
+        if (att.shearangle_degree) {
+          fields3 += "<span class='field-heading-sm'>Shear Angle: </span> <span class='field-data-sm'>" + att.shearangle_degree + "</span> | ";
+        }
+        if (att.shearcohesion_psi) {
+          fields3 += "<span class='field-heading-sm'>Shear Cohesion: </span> <span class='field-data-sm'>" + att.shearcohesion_psi+ "</span> | ";
                   }
                   if (att.resistivity_ohm_cm){
                         fields3 += "<span class='field-heading-sm'>Resistivity (ohm-cm): </span> <span class='field-data-sm'>" + att.resistivity_ohm_cm+ "</span> | ";
@@ -913,23 +846,37 @@
           });
       });
 
-      // get the number of visible features on view move
-      mapView.watch("interacting", function(extent){
-        var query = new Query();  
-        query.geometry = mapView.extent.extent;  
-        query.returnGeometry = false;
-        query.outFields = [];
-        query.returnExceededLimitFeatures = true;  //not working still only 1000 max
-        layer.queryFeatures(query).then(function(results){
-          //console.log("number of visible features");
-          //console.log(results.features.length);
-          (results.features.length >= 1000)
-            ? count = "More than 1000"
-            : count = results.features.length;
-          document.getElementById('statsDiv').innerHTML = "Visible Feature Count = "+count;
-        });
+// Watching for map extent changes and updating feature count
+mapView.watch(["extent", "stationary"], function() {
+  // Only query when the view is stationary to prevent excessive requests
+  if (!mapView.stationary) {
+    return;
+  }
 
-      });  
+  // Create query parameters for visible features
+  const query = {
+    where: "1=1",  // Return all features
+    geometry: mapView.extent,
+    spatialRelationship: "intersects",
+    outFields: ["*"],
+    returnGeometry: false,
+    returnCountOnly: true  // More efficient than returning features
+  };
+
+  // Query the WFS layer
+  layer.queryFeatureCount(query)
+    .then(function(count) {
+      let displayCount = count;
+      if (count >= 1000) {
+        displayCount = "More than 1000";
+      }
+      document.getElementById('statsDiv').innerHTML = "Visible Feature Count = " + displayCount;
+    })
+    .catch(function(error) {
+      console.error("Error getting feature count:", error);
+      document.getElementById('statsDiv').innerHTML = "Feature Count Unavailable";
+    });
+});
 
 
       /*
@@ -1027,8 +974,12 @@
         maxResults: 30,     //default 6
         searchAllEnabled: false,   //default is true
         sources: [{
-              layer: new FeatureLayer({
-                  url: "https://webmaps.geology.utah.gov/arcgis/rest/services/Hazards/Boreholes/MapServer/0",
+              layer: new WFSLayer({
+                url: "https://ugs-geoserver-prod-flbcoqv7oa-uc.a.run.app/geoserver/wfs",
+          name: "borehole_locations",
+          namespaceUri: "hazards",
+          id: "locations",
+          outFields: ["*"],
               }),
               autoNavigate: true,	//don't auto zoom in on the feature  //default true
               searchFields: ["boreid", "project_name", "projectid"],
