@@ -275,7 +275,7 @@
   <!-- ArcGIS JS 4 -->
   <script src="https://js.arcgis.com/4.21/"></script>
 
-  <script>
+  <!-- <script>
     let arcgisToken = null; // Global variable for the token
     const projectName = 'https://us-central1-ut-dnr-ugs-geolmapportal-prod.cloudfunctions.net'; // Cloud Function URL base
   
@@ -351,7 +351,7 @@
       }
       // No other initialization needed at this point
     }
-  </script>
+  </script> -->
 
   <script>
     
@@ -433,22 +433,32 @@
       });
 
 
-      // ------------------------------------ load map layers -------------------------------------
 
+// Get the token from the window object (set by Firebase module)
+var arcgisToken = window.arcgisToken || null;
 
-      var mapLayer = new TileLayer({
-            url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-            id: "24k",
-            index: 0,
-            opacity: 0.7,
-            title: "1:24,000 Geologic Maps",
-            visible: false,
-            legendEnabled: false,
-            customParameters: arcgisToken ? { token: arcgisToken } : {}
-            //minScale: 30000,
-            //maxScale: 4500
-      });
-      map.add(mapLayer);
+var mapLayer = new TileLayer({
+      url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+      id: "24k",
+      index: 0,
+      opacity: 0.7,
+      title: "1:24,000 Geologic Maps",
+      visible: false,
+      legendEnabled: false,
+      //minScale: 30000,
+      //maxScale: 4500
+});
+
+// Store reference to mapLayer in window object for access from Firebase module
+window.mapLayer = mapLayer;
+
+// Add the token if it's available
+if (arcgisToken) {
+    mapLayer.customParameters = { token: arcgisToken };
+    console.log("Added token to mapLayer on initialization");
+}
+
+map.add(mapLayer);
       
 
       const renderer = {
@@ -1152,40 +1162,90 @@ mapView.watch(["extent", "stationary"], function() {
   <script type="module">
     // Import the functions you need from the SDKs you need
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-analytics.js";
-  import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
-  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
-    // TODO: Add SDKs for Firebase products that you want to use
-    // https://firebase.google.com/docs/web/setup#available-libraries
-  
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-analytics.js";
+    import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js";
+
     // Your web app's Firebase configuration
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
     const firebaseConfig = {
-      apiKey: "AIzaSyAi0ecBg7dfitM9Num5n7onxZATDSPaC_o",
-      authDomain: "ut-dnr-ugs-borehole-prod.firebaseapp.com",
-      projectId: "ut-dnr-ugs-borehole-prod",
-      storageBucket: "ut-dnr-ugs-borehole-prod.appspot.com",
-      messagingSenderId: "78333091254",
-      appId: "1:78333091254:web:993c44895c1ea385dc3517",
-      measurementId: "G-QP1XVRTH4Q"
+        apiKey: "AIzaSyAi0ecBg7dfitM9Num5n7onxZATDSPaC_o",
+        authDomain: "ut-dnr-ugs-borehole-prod.firebaseapp.com",
+        projectId: "ut-dnr-ugs-borehole-prod",
+        storageBucket: "ut-dnr-ugs-borehole-prod.appspot.com",
+        messagingSenderId: "78333091254",
+        appId: "1:78333091254:web:993c44895c1ea385dc3517",
+        measurementId: "G-QP1XVRTH4Q"
     };
-  
+
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-  const auth = getAuth(app);
-  const functions = getFunctions(app);
-  
-  // Make auth and functions globally accessible
-  window.firebaseAuth = auth;
-  window.firebaseFunctions = functions;
-  
-  // Initialize the token fetching process
-  if (window.initializeFirebase) {
-    window.initializeFirebase(auth, functions);
-  } else {
-    console.error("initializeFirebase function not found. Ensure ArcGIS script runs first or handle timing.");
-  }
+    const analytics = getAnalytics(app);
+    const auth = getAuth(app);
+    const functions = getFunctions(app, 'us-central1'); // Specify region if needed
+
+    // Helper functions for loading indicators
+    function showLoading(message = 'Loading...') {
+        const loadingDiv = document.querySelector('.page-loading');
+        if (loadingDiv) {
+            loadingDiv.querySelector('h3').textContent = message;
+            loadingDiv.style.display = 'flex';
+        }
+    }
+
+    function hideLoading() {
+        const loadingDiv = document.querySelector('.page-loading');
+        if (loadingDiv) {
+            loadingDiv.style.display = 'none';
+        }
+    }
+
+    // Function to handle token acquisition
+    async function getArcGISToken() {
+        showLoading('Authenticating...');
+        
+        try {
+            const getArcGISTokenFn = httpsCallable(functions, 'getArcGISToken');
+            const result = await getArcGISTokenFn();
+            
+            // Store token in global window object for access from other scripts
+            window.arcgisToken = result.data.token;
+            console.log('ArcGIS token received:', window.arcgisToken ? 'Success' : 'Failed');
+            
+            // Modify mapLayer if it exists
+            setTimeout(() => {
+                if (window.mapLayer && window.arcgisToken) {
+                    window.mapLayer.customParameters = { token: window.arcgisToken };
+                    console.log('Added token to mapLayer');
+                }
+                hideLoading();
+            }, 1000);
+            
+            return result.data.token;
+        } catch (error) {
+            console.error('Error getting ArcGIS token:', error);
+            hideLoading();
+            return null;
+        }
+    }
+
+    // Handle authentication flow
+    showLoading('Initializing...');
+    
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            console.log('User is signed in:', user.uid);
+            await getArcGISToken();
+        } else {
+            console.log('No user signed in, signing in anonymously...');
+            try {
+                await signInAnonymously(auth);
+                // Auth state change will trigger the callback again
+            } catch (error) {
+                console.error('Anonymous sign-in error:', error);
+                hideLoading();
+            }
+        }
+    });
 </script>
 
 </body>
