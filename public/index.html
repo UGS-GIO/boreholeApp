@@ -392,50 +392,41 @@
       function initializeFirebase() {
         console.log('Initializing Firebase...');
         
-        // Check if Firebase is loaded yet
-        if (typeof firebase === 'undefined') {
-          console.log('Firebase not loaded yet, waiting...');
-          setTimeout(initializeFirebase, 500); // Try again in 500ms
-          return;
-        }
-        
         try {
-          // Check if Firebase SDK is available
-          if (!firebase.auth || !firebase.functions) {
-            console.error('Firebase SDK not properly loaded');
-            $('.page-loading').html('<div><h3>Service Error</h3><p><small>Firebase SDK not available. Please try again later.</small></p></div>');
-            return;
-          }
-          
-          const auth = firebase.auth();
-          const functions = firebase.functions();
-          
-          console.log('Firebase SDK loaded successfully');
-          
-          // Handle authentication state changes
-          auth.onAuthStateChanged(function(user) {
-            if (user) {
-              console.log('User is signed in:', user.uid);
-              // Get ArcGIS token after successful auth
-              getArcGISToken(functions);
-            } else {
-              console.log('No user signed in, signing in anonymously...');
-              auth.signInAnonymously()
-                .then(function() {
-                  console.log('Anonymous sign-in successful');
-                })
-                .catch(function(error) {
-                  console.error('Anonymous sign-in error:', error);
-                  $('.page-loading').html('<div><h3>Authentication Error</h3><p><small>Failed to connect to map services. Please try again later.</small></p></div>');
-                });
+            // Check if Firebase is already initialized
+            if (typeof firebase === 'undefined') {
+                console.log('Firebase not loaded yet, waiting...');
+                setTimeout(initializeFirebase, 500); // Try again in 500ms
+                return;
             }
-          });
+            
+            // Firebase should already be initialized in the HTML
+            const auth = firebase.auth();
+            const functions = firebase.functions();
+            
+            // Handle authentication state changes
+            auth.onAuthStateChanged(function(user) {
+                if (user) {
+                    console.log('User is signed in:', user.uid);
+                    // Get ArcGIS token after successful auth
+                    getArcGISToken(functions);
+                } else {
+                    console.log('No user signed in, signing in anonymously...');
+                    auth.signInAnonymously()
+                        .catch(function(error) {
+                            console.error('Anonymous sign-in error:', error);
+                            $('.page-loading').html('<div><h3>Authentication Error</h3><p><small>Failed to connect to map services. Please try again later.</small></p></div>');
+                            // Continue with map initialization without the token
+                            continueMapInitialization();
+                        });
+                }
+            });
         } catch (error) {
-          console.error('Firebase initialization error:', error);
-          $('.page-loading').html('<div><h3>Service Error</h3><p><small>Failed to initialize map services. Please try again later.</small></p></div>');
-          
-          // Continue with map initialization without Firebase
-          continueMapInitialization();
+            console.error('Firebase initialization error:', error);
+            $('.page-loading').html('<div><h3>Service Error</h3><p><small>Failed to initialize map services. Please try again later.</small></p></div>');
+            
+            // Continue with map initialization without Firebase
+            continueMapInitialization();
         }
       }
 
@@ -445,60 +436,53 @@
         $('.page-loading').html('<div><h3>Loading map...</h3><p><small>Authenticating map services...</small></p><img src="images/loading.gif" alt="loader"></div>');
         
         try {
-          // Create a functions instance that points to the production project
-          const productionFunctions = firebase.app().functions('us-central1');
-          
-          // Set the custom domain to point to the production project
-          productionFunctions.customDomain = `${projectName}`;
-          console.log('Function domain set to:', projectName);
-          
-          // Call the function in the production project
-          const getArcGISTokenFn = productionFunctions.httpsCallable('getArcGISToken');
-          
-          console.log('Making function call to getArcGISToken...');
-          getArcGISTokenFn()
-            .then(function(result) {
-              console.log('Function call successful');
-              // Check if we got a valid result with token data
-              if (result && result.data && result.data.token) {
-                // Read the token from the result and set to global variable
-                arcgisToken = result.data.token;
-                console.log('ArcGIS token received:', arcgisToken.substring(0, 10) + '...');
-                
-                // Configure the ArcGIS API to use the token for requests
-                if (typeof esriConfig !== 'undefined') {
-                  configureArcGISWithToken(arcgisToken);
-                } else {
-                  console.warn('esriConfig is not defined yet. Only using customParameters for token.');
-                }
-                
-                // Update the mapLayer to use the new token
-                if (mapLayer) {
-                  console.log('Updating mapLayer with token');
-                  mapLayer.customParameters = { token: arcgisToken };
-                  mapLayer.refresh();
-                }
-                
-                // Continue with map initialization
-                continueMapInitialization();
-              } else {
-                console.error('Invalid result from function:', result);
-                $('.page-loading').html('<div><h3>Authentication Error</h3><p><small>Invalid token response. Some features may be limited.</small></p></div>');
-                continueMapInitialization();
-              }
-            })
-            .catch(function(error) {
-              console.error('Error getting ArcGIS token:', error);
-              $('.page-loading').html('<div><h3>Authentication Warning</h3><p><small>Could not authenticate to secure service. Some features may be limited.</small></p></div>');
-              
-              // Continue with map initialization without loading the secured layer
-              continueMapInitialization();
-            });
+            // Create a functions instance that points to the production project
+            const productionFunctions = firebase.app().functions('us-central1');
+            
+            // Set the custom domain to point to the production project
+            productionFunctions.customDomain = `${projectName}`;
+            console.log('Function domain set to:', projectName);
+            
+            // Call the function in the production project
+            const getArcGISTokenFn = productionFunctions.httpsCallable('getArcGISToken');
+            
+            console.log('Making function call to getArcGISToken...');
+            getArcGISTokenFn()
+                .then(function(result) {
+                    console.log('Function call successful');
+                    // Check if we got a valid result with token data
+                    if (result && result.data && result.data.token) {
+                        // Read the token from the result and set to global variable
+                        arcgisToken = result.data.token;
+                        console.log('ArcGIS token received:', arcgisToken.substring(0, 10) + '...');
+                        
+                        // Configure the ArcGIS API to use the token for requests
+                        if (typeof esriConfig !== 'undefined') {
+                            configureArcGISWithToken(arcgisToken);
+                        } else {
+                            console.warn('esriConfig is not defined yet. Only using customParameters for token.');
+                        }
+                        
+                        // Continue with map initialization
+                        continueMapInitialization();
+                    } else {
+                        console.error('Invalid result from function:', result);
+                        $('.page-loading').html('<div><h3>Authentication Error</h3><p><small>Invalid token response. Some features may be limited.</small></p></div>');
+                        continueMapInitialization();
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error getting ArcGIS token:', error);
+                    $('.page-loading').html('<div><h3>Authentication Warning</h3><p><small>Could not authenticate to secure service. Some features may be limited.</small></p></div>');
+                    
+                    // Continue with map initialization without loading the secured layer
+                    continueMapInitialization();
+                });
         } catch (error) {
-          console.error('Error calling token function:', error);
-          $('.page-loading').html('<div><h3>Service Error</h3><p><small>Failed to call authentication service. Some features may be limited.</small></p></div>');
-          // Continue with map initialization without the token or secured layer
-          continueMapInitialization();
+            console.error('Error calling token function:', error);
+            $('.page-loading').html('<div><h3>Service Error</h3><p><small>Failed to call authentication service. Some features may be limited.</small></p></div>');
+            // Continue with map initialization without the token or secured layer
+            continueMapInitialization();
         }
       }
 
@@ -518,17 +502,17 @@
         }
         
         try {
-          // Configure request interceptor
+          // Configure request interceptor to add token to requests
           esriConfig.request.interceptors = esriConfig.request.interceptors || [];
           esriConfig.request.interceptors.push({
             urls: [
               "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-              "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0"
+              "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0",
+              "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/30x60_Quads/MapServer"
             ],
             before: function(params) {
               params.requestOptions.query = params.requestOptions.query || {};
               params.requestOptions.query.token = token;
-              console.log('Added token to request');
             }
           });
           console.log('Added interceptor to esriConfig');
@@ -540,7 +524,8 @@
 
       function continueMapInitialization() {
         console.log('Continuing map initialization with token:', arcgisToken ? 'Available' : 'Not available');
-          
+        $('.page-loading').html('<div><h3>Loading map...</h3><p><small>Initializing map layers...</small></p><img src="images/loading.gif" alt="loader"></div>');
+        
         if (!mapLayer && arcgisToken) {
           // Create the map layer with the token
           mapLayer = new TileLayer({
@@ -566,6 +551,9 @@
         } else {
           console.warn('No token available for map layer or map layer already created');
         }
+        
+        // Set up the map layers
+        setLayerVisibility(uri.layers.replace(/[\(\)]/g, '').split(','));
         
         // Hide loading message
         $('.page-loading').hide();
