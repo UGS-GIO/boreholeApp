@@ -194,41 +194,40 @@
 
     // Get ArcGIS token
     function getArcGISToken() {
-      try {
-        // Create a functions instance pointing to production project
-        const functions = firebase.functions('us-central1');
-        functions.customDomain = projectName;
-        
-        // Call the ArcGIS token function
-        const getArcGISTokenFn = functions.httpsCallable('getArcGISToken');
-        
-        getArcGISTokenFn()
-          .then(function(result) {
-            arcgisToken = result.data.token;
-            console.log('ArcGIS token received:', arcgisToken ? 'Token received successfully' : 'No token received');
-            
-            // Store token for ArcGIS initialization and load the API
-            window.initialArcGISToken = arcgisToken;
-            updateLoadingStatus('Loading map...', 'Initializing map components...');
-            loadArcGISAPI();
-          })
-          .catch(function(error) {
-            console.error('Error getting ArcGIS token:', error);
-            updateLoadingStatus('Authentication Warning', 'Could not authenticate to secure service. Some features may be limited.');
-            
-            // Continue without token
-            window.initialArcGISToken = null;
-            loadArcGISAPI();
-          });
-      } catch (error) {
-        console.error('Error calling token function:', error);
-        updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
-        
-        // Continue without token
+  try {
+    // Get functions instance for the CURRENT project (borehole-prod)
+    const functions = firebase.functions(); // Use compat version
+    // No need to set customDomain here
+
+    // Call the PROXY function within borehole-prod
+    updateLoadingStatus('Loading map...', 'Requesting secure token...'); // Update status
+    const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken');
+
+    proxyGetArcGISTokenFn()
+      .then(function(result) {
+        arcgisToken = result.data.token; // Token comes from the proxy now
+        console.log('ArcGIS token received via proxy:', arcgisToken ? 'Token received successfully' : 'No token received');
+
+        window.initialArcGISToken = arcgisToken;
+        updateLoadingStatus('Loading map...', 'Initializing map components...');
+        loadArcGISAPI(); // Proceed to load ArcGIS API
+      })
+      .catch(function(error) {
+        // Handle errors returned from the proxy function
+        console.error('Error getting ArcGIS token via proxy:', error.code, error.message, error.details);
+        updateLoadingStatus('Authentication Warning', `Could not get token: ${error.message}. Some features may be limited.`);
+
         window.initialArcGISToken = null;
-        loadArcGISAPI();
-      }
-    }
+        loadArcGISAPI(); // Proceed without token
+      });
+  } catch (error) {
+    console.error('Error setting up token function call:', error);
+    updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
+
+    window.initialArcGISToken = null;
+    loadArcGISAPI(); // Proceed without token
+  }
+}
 
     // Load ArcGIS JavaScript API
     function loadArcGISAPI() {
