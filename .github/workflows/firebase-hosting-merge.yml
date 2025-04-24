@@ -17,3 +17,7 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_UT_DNR_UGS_BOREHOLE_PROD }}
           channelId: live
           projectId: ut-dnr-ugs-borehole-prod
+        env:
+          # Increase memory limit for Node.js (e.g., 4GB)
+          # Adjust the size (4096) as needed based on your project's requirements
+          NODE_OPTIONS: --max-old-space-size=4096
