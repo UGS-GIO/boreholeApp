@@ -951,28 +951,33 @@
           
           if (firebase && firebase.auth().currentUser) {
             const functions = firebase.functions('us-central1');
-            functions.customDomain = 'https://us-central1-ut-dnr-ugs-geolmapportal-prod.cloudfunctions.net';
-            
-            const getArcGISTokenFn = functions.httpsCallable('getArcGISToken');
-            
-            getArcGISTokenFn()
-              .then(function(result) {
-                const newToken = result.data.token;
-                console.log('New token received');
-                
-                // Update token on secured layers
-                if (mapLayer) {
-                  mapLayer.customParameters = { token: newToken };
-                  try {
-                    mapLayer.refresh();
-                    console.log('Layer refreshed with new token');
-                  } catch (e) {
-                    console.error('Error refreshing layer:', e);
-                  }
-                }
-              })
-              .catch(function(error) {
-                console.error('Error refreshing token:', error);
+ // Call the PROXY function again
+ const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken'); // <-- Call the PROXY
+
+proxyGetArcGISTokenFn()
+  .then(function(result) {
+    const newToken = result.data.token;
+    console.log('New token received via proxy on refresh');
+    window.initialArcGISToken = newToken; // Update global state if needed
+    arcgisToken = newToken; // Update global state if needed
+
+    // Update token on secured layers
+    if (mapLayer) {
+      mapLayer.customParameters = { token: newToken };
+      try {
+        // Refresh the layer to use the new token for subsequent tile requests
+        mapLayer.refresh();
+        console.log('Layer refreshed with new token');
+      } catch (e) {
+        console.error('Error refreshing layer:', e);
+      }
+    }
+    // Optionally update esriConfig interceptor if you are using it
+     configureArcGISWithToken(esriConfig, newToken);
+
+  })
+  .catch(function(error) {
+    console.error('Error refreshing token via proxy:', error.code, error.message);
               });
           }
         }
