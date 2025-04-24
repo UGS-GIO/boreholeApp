@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html>
 <head>
 <!-- Google Tag Manager -->
@@ -8,32 +7,6 @@
   'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
   })(window,document,'script','dataLayer','GTM-PPGF6Z2N');</script>
   <!-- End Google Tag Manager -->
-   
-  <!-- Firebase SDK - Load before other scripts -->
-  <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-functions-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics-compat.js"></script>
-  
-  <script>
-    // Initialize Firebase
-    const firebaseConfig = {
-      apiKey: "AIzaSyAi0ecBg7dfitM9Num5n7onxZATDSPaC_o",
-      authDomain: "ut-dnr-ugs-borehole-prod.firebaseapp.com",
-      projectId: "ut-dnr-ugs-borehole-prod",
-      storageBucket: "ut-dnr-ugs-borehole-prod.appspot.com",
-      messagingSenderId: "78333091254",
-      appId: "1:78333091254:web:993c44895c1ea385dc3517",
-      measurementId: "G-QP1XVRTH4Q"
-    };
-    
-    // Initialize Firebase with compat version
-    firebase.initializeApp(firebaseConfig);
-    firebase.analytics();
-    
-    // Signal that Firebase is ready
-    window.firebaseReady = true;
-  </script>
 
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -347,12 +320,6 @@
        ******************************************************************/
       // Map
       var GlobalID = "";
-      let arcgisToken = null; // Variable to store the ArcGIS token
-      let mapLayer = null; // Define mapLayer variable before it's referenced
-      const projectName = 'https://us-central1-ut-dnr-ugs-geolmapportal-prod.cloudfunctions.net'; 
-
-      // Initialize Firebase after ensuring it's loaded
-      initializeFirebase();
 
       
       var map = new WebMap({
@@ -388,162 +355,10 @@
       });
 
 
-      // Firebase Configuration and Initialization
-      function initializeFirebase() {
-        console.log('Initializing Firebase...');
-        
-        // Check if Firebase is loaded yet
-        if (typeof firebase === 'undefined') {
-          console.log('Firebase not loaded yet, waiting...');
-          setTimeout(initializeFirebase, 500); // Try again in 500ms
-          return;
-        }
-        
-        try {
-          // Check if Firebase SDK is available
-          if (!firebase.auth || !firebase.functions) {
-            console.error('Firebase SDK not properly loaded');
-            $('.page-loading').html('<div><h3>Service Error</h3><p><small>Firebase SDK not available. Please try again later.</small></p></div>');
-            return;
-          }
-          
-          const auth = firebase.auth();
-          const functions = firebase.functions();
-          
-          console.log('Firebase SDK loaded successfully');
-          
-          // Handle authentication state changes
-          auth.onAuthStateChanged(function(user) {
-            if (user) {
-              console.log('User is signed in:', user.uid);
-              // Get ArcGIS token after successful auth
-              getArcGISToken(functions);
-            } else {
-              console.log('No user signed in, signing in anonymously...');
-              auth.signInAnonymously()
-                .then(function() {
-                  console.log('Anonymous sign-in successful');
-                })
-                .catch(function(error) {
-                  console.error('Anonymous sign-in error:', error);
-                  $('.page-loading').html('<div><h3>Authentication Error</h3><p><small>Failed to connect to map services. Please try again later.</small></p></div>');
-                });
-            }
-          });
-        } catch (error) {
-          console.error('Firebase initialization error:', error);
-          $('.page-loading').html('<div><h3>Service Error</h3><p><small>Failed to initialize map services. Please try again later.</small></p></div>');
-          
-          // Continue with map initialization without Firebase
-          continueMapInitialization();
-        }
-      }
-
-      // Function to get ArcGIS token using Firebase Cloud Function
-      function getArcGISToken(functions) {
-        console.log('Getting ArcGIS token...');
-        $('.page-loading').html('<div><h3>Loading map...</h3><p><small>Authenticating map services...</small></p><img src="images/loading.gif" alt="loader"></div>');
-        
-        try {
-          // Create a functions instance that points to the production project
-          const productionFunctions = firebase.app().functions('us-central1');
-          
-          // Set the custom domain to point to the production project
-          productionFunctions.customDomain = `${projectName}`;
-          console.log('Function domain set to:', projectName);
-          
-          // Call the function in the production project
-          const getArcGISTokenFn = productionFunctions.httpsCallable('getArcGISToken');
-          
-          console.log('Making function call to getArcGISToken...');
-          getArcGISTokenFn()
-            .then(function(result) {
-              console.log('Function call successful');
-              // Check if we got a valid result with token data
-              if (result && result.data && result.data.token) {
-                // Read the token from the result and set to global variable
-                arcgisToken = result.data.token;
-                console.log('ArcGIS token received:', arcgisToken.substring(0, 10) + '...');
-                
-                // Configure the ArcGIS API to use the token for requests
-                if (typeof esriConfig !== 'undefined') {
-                  configureArcGISWithToken(arcgisToken);
-                } else {
-                  console.warn('esriConfig is not defined yet. Only using customParameters for token.');
-                }
-                
-                // Update the mapLayer to use the new token
-                if (mapLayer) {
-                  console.log('Updating mapLayer with token');
-                  mapLayer.customParameters = { token: arcgisToken };
-                  mapLayer.refresh();
-                }
-                
-                // Continue with map initialization
-                continueMapInitialization();
-              } else {
-                console.error('Invalid result from function:', result);
-                $('.page-loading').html('<div><h3>Authentication Error</h3><p><small>Invalid token response. Some features may be limited.</small></p></div>');
-                continueMapInitialization();
-              }
-            })
-            .catch(function(error) {
-              console.error('Error getting ArcGIS token:', error);
-              $('.page-loading').html('<div><h3>Authentication Warning</h3><p><small>Could not authenticate to secure service. Some features may be limited.</small></p></div>');
-              
-              // Continue with map initialization without loading the secured layer
-              continueMapInitialization();
-            });
-        } catch (error) {
-          console.error('Error calling token function:', error);
-          $('.page-loading').html('<div><h3>Service Error</h3><p><small>Failed to call authentication service. Some features may be limited.</small></p></div>');
-          // Continue with map initialization without the token or secured layer
-          continueMapInitialization();
-        }
-      }
-
-      // Configure ArcGIS with token
-      function configureArcGISWithToken(token) {
-        console.log('Configuring ArcGIS with token:', token ? 'Token available' : 'No token');
-        
-        if (!token) {
-          console.log('No token available for configuration');
-          return;
-        }
-        
-        // Make sure esriConfig is defined
-        if (typeof esriConfig === 'undefined') {
-          console.error('esriConfig is not defined');
-          return;
-        }
-        
-        try {
-          // Configure request interceptor
-          esriConfig.request.interceptors = esriConfig.request.interceptors || [];
-          esriConfig.request.interceptors.push({
-            urls: [
-              "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-              "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0"
-            ],
-            before: function(params) {
-              params.requestOptions.query = params.requestOptions.query || {};
-              params.requestOptions.query.token = token;
-              console.log('Added token to request');
-            }
-          });
-          console.log('Added interceptor to esriConfig');
-        } catch (error) {
-          console.error('Error configuring esriConfig:', error);
-        }
-      }
+      // ------------------------------------ load map layers -------------------------------------
 
 
-      function continueMapInitialization() {
-        console.log('Continuing map initialization with token:', arcgisToken ? 'Available' : 'Not available');
-          
-        if (!mapLayer && arcgisToken) {
-          // Create the map layer with the token
-          mapLayer = new TileLayer({
+      var mapLayer = new TileLayer({
             url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
             id: "24k",
             index: 0,
@@ -551,36 +366,24 @@
             title: "1:24,000 Geologic Maps",
             visible: false,
             legendEnabled: false,
-            customParameters: {
-              token: arcgisToken
-            }
-          });
-          
-          console.log('Adding TileLayer to map with token');
-          map.add(mapLayer);
-        } else if (mapLayer && arcgisToken) {
-          // Update the existing map layer with the new token
-          console.log('Updating existing TileLayer with token');
-          mapLayer.customParameters = { token: arcgisToken };
-          mapLayer.refresh();
-        } else {
-          console.warn('No token available for map layer or map layer already created');
-        }
-        
-        // Hide loading message
-        $('.page-loading').hide();
+            //minScale: 30000,
+            //maxScale: 4500
+      });
+      map.add(mapLayer);
+      
 
-        const renderer = {
-          type: "unique-value",  // autocasts as new UniqueValueRenderer()
-          field: "exploration_method", 
-          uniqueValueInfos: [
-            {value:"Drill", label:"Drill", symbol:{type:"simple-marker", color: [255, 0, 0], style: "circle", outline: {width: 0}, size: 6}},  // Solid Red
-            {value:"Excavation", label:"Trench", symbol:{type:"simple-marker", color: [0, 0, 255], style: "circle", outline: {width: 0}, size: 6}},  // Solid Blue
-            {value:"CPT", label:"Cone Penetration Test", symbol:{type:"simple-marker", color: [128, 0, 128], style: "circle", outline: {width: 0}, size: 6}}  // Solid Purple
-          ]
-        };
+      const renderer = {
+  type: "unique-value",  // autocasts as new UniqueValueRenderer()
+  field: "exploration_method", 
+  uniqueValueInfos: [
+    {value:"Drill", label:"Drill", symbol:{type:"simple-marker", color: [255, 0, 0], style: "circle", outline: {width: 0}, size: 6}},  // Solid Red
+    {value:"Excavation", label:"Trench", symbol:{type:"simple-marker", color: [0, 0, 255], style: "circle", outline: {width: 0}, size: 6}},  // Solid Blue
+    {value:"CPT", label:"Cone Penetration Test", symbol:{type:"simple-marker", color: [128, 0, 128], style: "circle", outline: {width: 0}, size: 6}}  // Solid Purple
+  ]
+};
 
-        var layer = new WFSLayer({
+
+      var layer = new WFSLayer({
           url: "https://ugs-geoserver-prod-flbcoqv7oa-uc.a.run.app/geoserver/wfs",
           name: "borehole_locations",
           namespaceUri: "hazards",
@@ -590,393 +393,424 @@
           title: "Geotechnical Explorations",
           renderer: renderer,
         });
-        map.add(layer);
+      map.add(layer);
 
-        // show or hide any open calicite panels when user clicks for attribute details
-        function showHideCalcitePanels(showPanel, showCollapse) {
-          // hide all windows
-          query(".panel.in").removeClass("in"); //close any open panels
-          query(".panel-collapse").removeClass("in");
 
-          // if specified show this calcite panel
-          if (showPanel) {
+    // show or hide any open calicite panels when user clicks for attribute details
+    function showHideCalcitePanels(showPanel, showCollapse) {
+        // hide all windows
+        query(".panel.in").removeClass("in"); //close any open panels
+        query(".panel-collapse").removeClass("in");
+
+        // if specified show this calcite panel
+        if (showPanel) {
             //query(showPanel).query(showCollapse).addClass("in");
             query(showPanel).collapse("show"); // so I use these instead
             query(showCollapse).collapse("show");
-          }
         }
-           
-        var popupAction = {
-          title: "Get  Geotechnical Data",
-          id: "sample-data",
-          className: "esri-icon-table"
-        };
+    }
 
-        var popupTemplate = {
+      
+    var popupAction = {
+      title: "Get  Geotechnical Data",
+      id: "sample-data",
+      className: "esri-icon-table"
+    };
+
+    var popupTemplate = {
           outFields: ["*"], 
           actions: [popupAction],
           //title: "<b>Associated Data</b>",
           content: createPopup
+              /*
+              "<b>Project Name:</b> {project_name}<br>"+
+              "<b>Consultant:</b> {Consultant}<br>"+
+              "<b>Date Completed:</b> {date_completed}<br>"+
+              "<b>Exploration Method:</b> {Exploration_Method}<br>"+
+              "<b>Groundwater Depth (ft):</b> {GW_Depth}<br>"+
+              "<b>Refusal Depth (ft):</b> {bedrock_refusal}<br>"+
+              "<b>Completion:</b> {completion}<br>"+
+              "<b>Location:</b> {latitude}, {longitude}<br>"+
+              "<b>Elevation (ft):</b> {elevation_ft}<br>"+
+              "<b>Geologic Unit:</b> {geologic_unit}<br>"+
+              "<b>Added to Database:</b> {DatabaseDate}<br>"+
+              "<b>Report URL:</b> <a target='blank' href='{report_url}'>External Link</a>"
+              */
+    }
+    layer.popupTemplate = popupTemplate;
+
+
+    // create popup template content for use clicks
+    function createPopup(featureSet){
+      var content = "";
+      showHideCalcitePanels("", "#collapseData");
+        //(featureSet);
+        var att = featureSet.graphic.attributes;
+        //console.log(att);
+        //dockPopup();
+
+    		if(att.project_name){
+    			   content += "<span class='bold' title='Project Name'>Project Name: </span>" + att.project_name + "<br/>";
+    		}
+    		if(att.consultant){
+    			   content += "<span class='bold' title='Consultant'>Consultant: </span>" + att.consultant + "<br/>";
+    		}
+    		if(att.date_completed){
+              var date = new Date(att.date_completed);
+              if (date) date = date.toDateString();
+    			   content += "<span class='bold' title='Date Completed'>Date Completed: </span>" + date + "<br/>";
+    		}
+    		if(att.exploration_method){
+    			   content += "<span class='bold' title='Exploration Method'>Exploration Method: </span>" + att.exploration_method + "<br />";
+    		}
+    		if(att.gw_depth){
+    			   content += "<span class='bold' title='Groundwater Depth (ft):'>Groundwater Depth (ft): </span>" + att.gw_depth + "<br />";
+    		}
+    		if(att.bedrock_refusal){
+    			   content += "<span class='bold' title='Refusal Depth (ft)'>Refusal Depth (ft): </span>" + att.bedrock_refusal + "<br />";
+    		}
+    		if(att.completion){
+    			   content += "<span class='bold' title='Completion'>Completion: </span>" + att.completion + "<br />";
+    		}
+    		if(att.latitude){
+    			   content += "<span class='bold' title='Location: </span>" +att.latitude+ ", "+att.longitude+"<br />";
+    		}
+    		if(att.elevation_ft){
+    			   content += "<span class='bold' title='Elevation (ft)'>Elevation (ft): </span>" + att.elevation_ft + "<br />";
         }
-        layer.popupTemplate = popupTemplate;
-
-        // create popup template content for use clicks
-        function createPopup(featureSet){
-          var content = "";
-          showHideCalcitePanels("", "#collapseData");
-            //(featureSet);
-            var att = featureSet.graphic.attributes;
-            //console.log(att);
-            //dockPopup();
-
-            if(att.project_name){
-               content += "<span class='bold' title='Groundwater Depth (ft):'>Groundwater Depth (ft): </span>" + att.gw_depth + "<br />";
-            }
-            if(att.bedrock_refusal){
-               content += "<span class='bold' title='Refusal Depth (ft)'>Refusal Depth (ft): </span>" + att.bedrock_refusal + "<br />";
-            }
-            if(att.completion){
-               content += "<span class='bold' title='Completion'>Completion: </span>" + att.completion + "<br />";
-            }
-            if(att.latitude){
-               content += "<span class='bold' title='Location: </span>" +att.latitude+ ", "+att.longitude+"<br />";
-            }
-            if(att.elevation_ft){
-               content += "<span class='bold' title='Elevation (ft)'>Elevation (ft): </span>" + att.elevation_ft + "<br />";
-            }
-            if(att.geologic_unit){
-               content += "<span class='bold' title='Geologic Unit (ft)'>Geologic Unit: </span>" + att.geologic_unit + "<br />";
-            }
-            if(att.databasedate){
+    		if(att.geologic_unit){
+    			   content += "<span class='bold' title='Geologic Unit (ft)'>Geologic Unit: </span>" + att.geologic_unit + "<br />";
+    		}
+    		if(att.databasedate){
               var date2 = new Date(att.databasedate);
               //console.log(att.databasedate);
               if (date2) date2 = date2.toDateString();
-               content += "<span class='bold' title='Added to Database: '>Added to Database: </span>" + date2 + "<br />";
-            }
-            if(att.report_url){
-               content += "<span class='bold' title='Report URL'>Report URL: </span> <a target='blank' href='" + att.report_url + "'>External Link</a><br />";
-            }
+    			   content += "<span class='bold' title='Added to Database: '>Added to Database: </span>" + date2 + "<br />";
+        }
+    		if(att.report_url){
+    			   content += "<span class='bold' title='Report URL'>Report URL: </span> <a target='blank' href='" + att.report_url + "'>External Link</a><br />";
+    		}
 
-            return content;
+    		return content;
+      }
+      
+      function stringToDate(_date,_format,_delimiter){
+        var formatLowerCase=_format.toLowerCase();
+        var formatItems=formatLowerCase.split(_delimiter);
+        var dateItems=_date.split(_delimiter);
+        var monthIndex=formatItems.indexOf("mm");
+        var dayIndex=formatItems.indexOf("dd");
+        var yearIndex=formatItems.indexOf("yyyy");
+        var month=parseInt(dateItems[monthIndex]);
+        month-=1;
+        var formatedDate = new Date(dateItems[yearIndex],month,dateItems[dayIndex]);
+        return formatedDate;
+      }
+
+      // show or hide any open calicite panels when user clicks for attribute details
+      function showHideCalcitePanels(showPanel, showCollapse) {
+        // hide all windows
+        query(".panel.in").removeClass("in"); //close any open panels
+        query(".panel-collapse").removeClass("in");
+
+        // if specified show this calcite panel
+        if (showPanel) {
+            //query(showPanel).query(showCollapse).addClass("in");
+            query(showPanel).collapse("show"); // so I use these instead
+            query(showCollapse).collapse("show");
+        }
+      }
+      
+
+      // get the object id of the SELECTED feature  (since trigger actions get id's of ALL nearby ftrs)
+      watchUtils.when(mapView.popup, "selectedFeature", function species(evt) {
+        GlobalID = mapView.popup.selectedFeature.attributes.boreid;
+          //console.log(GlobalID);
+      }); // end watchUtil
+
+      mapView.popup.on("trigger-action", function(event) {
+          if (event.action.id === "sample-data") {
+            console.log("trigger event firing!!")
+            // console.log(event.target.features);
+            // var fid = event.target.features[0].attributes.boreid;
+            // make GlobalID
+            console.log(GlobalID);
+            queryRelated(GlobalID);   // event.feature.atts.boreid
           }
-          
-          function stringToDate(_date,_format,_delimiter){
-            var formatLowerCase=_format.toLowerCase();
-            var formatItems=formatLowerCase.split(_delimiter);
-            var dateItems=_date.split(_delimiter);
-            var monthIndex=formatItems.indexOf("mm");
-            var dayIndex=formatItems.indexOf("dd");
-            var yearIndex=formatItems.indexOf("yyyy");
-            var month=parseInt(dateItems[monthIndex]);
-            month-=1;
-            var formatedDate = new Date(dateItems[yearIndex],month,dateItems[dayIndex]);
-            return formatedDate;
-          }
-
-          // show or hide any open calicite panels when user clicks for attribute details
-          function showHideCalcitePanels(showPanel, showCollapse) {
-            // hide all windows
-            query(".panel.in").removeClass("in"); //close any open panels
-            query(".panel-collapse").removeClass("in");
-
-            // if specified show this calcite panel
-            if (showPanel) {
-                //query(showPanel).query(showCollapse).addClass("in");
-                query(showPanel).collapse("show"); // so I use these instead
-                query(showCollapse).collapse("show");
-            }
-          }
-          
-
-          // get the object id of the SELECTED feature  (since trigger actions get id's of ALL nearby ftrs)
-          watchUtils.when(mapView.popup, "selectedFeature", function species(evt) {
-            GlobalID = mapView.popup.selectedFeature.attributes.boreid;
-              //console.log(GlobalID);
-          }); // end watchUtil
-
-          mapView.popup.on("trigger-action", function(event) {
-              if (event.action.id === "sample-data") {
-                console.log("trigger event firing!!")
-                // console.log(event.target.features);
-                // var fid = event.target.features[0].attributes.boreid;
-                // make GlobalID
-                console.log(GlobalID);
-                queryRelated(GlobalID);   // event.feature.atts.boreid
-              }
-          });
+      });
 
 
-          // query all three tables to get ALLLLLL the related data
-          // when user clicks on 'get sample data' in the popup
-          // Modified queryRelated function using fetch
-          function queryRelated(id) {
-            const headers = {
-              'Accept-Profile': 'boreholes'
-            };
+      // query all three tables to get ALLLLLL the related data
+      // when user clicks on 'get sample data' in the popup
+// Modified queryRelated function using fetch
+function queryRelated(id) {
+  const headers = {
+    'Accept-Profile': 'boreholes'
+  };
 
-            // #1 get the rest of the data from the main table ----------------------------
-            fetch(`https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app/borehole_locations?boreid=eq.${id}`, {
-              headers: headers
-            })
-              .then(response => response.json())
-              .then(results => {
-                if (results.length === 0) return;
-                
-                console.log(results[0]);  // equivalent to previous results.features[0].attributes
-                var fields = "";
-                var att = results[0];  // data comes directly as attributes now
+  // #1 get the rest of the data from the main table ----------------------------
+  fetch(`https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app/borehole_locations?boreid=eq.${id}`, {
+    headers: headers
+  })
+    .then(response => response.json())
+    .then(results => {
+      if (results.length === 0) return;
+      
+      console.log(results[0]);  // equivalent to previous results.features[0].attributes
+      var fields = "";
+      var att = results[0];  // data comes directly as attributes now
 
-                if (att.projectid) {
-                  fields += "<span class='field-heading'>Project ID: </span><span class='field-data'>" + att.projectid + "</span><br>";
-                }
-                if (att.udot_pin) {
-                  fields += "<span class='field-heading'>UDOT Pin: </span><span class='field-data'>" + att.udot_pin + "</span><br>";
-                }
-                if (att.exploration_type) {
-                  fields += "<span class='field-heading'>Exploration Type: </span><span class='field-data'>" + att.exploration_type + "</span><br>";
-                }
-                if (att.exploration_equiptment) {
-                  fields += "<span class='field-heading'>Exploration Equipment: </span><span class='field-data'>" + att.exploration_equiptment + "</span><br>";
-                }
-                if (att.hammer_type) {
-                  fields += "<span class='field-heading'>SPT Hammer Type: </span><span class='field-data'>" + att.hammer_type + "</span><br>";
-                }
-                if (att.coordinate_source) {
-                  fields += "<span class='field-heading'>Coordinate Source: </span><span class='field-data'>" + att.coordinate_source + "</span><br>";
-                }
-                if (att.elevation_source) {
-                  fields += "<span class='field-heading'>Elevation Source: </span><span class='field-data'>" + att.elevation_source + "</span><br>";
-                }
-                if (att.enteredby) {
-                  fields += "<span class='field-heading'>Entered By: </span><span class='field-data'>" + att.enteredby + "</span><br>";
-                }
-                if (att.ugs_gdid) {
-                  fields += "<span class='field-heading'>UGS GID: </span><span class='field-data'>" + att.ugs_gdid + "</span><br>";
-                }
-                if (att.boreid) {
-                  fields += "<span class='field-heading'>BoreID: </span><span class='field-data'>" + att.boreid + "</span><br>";
-                }
-                if (att.notes) {
-                  fields += "<span class='field-heading'>Exploration Notes: </span><span class='field-data'>" + att.notes + "</span><br>";
-                }
-                fields += "<br>";
+      if (att.projectid) {
+        fields += "<span class='field-heading'>Project ID: </span><span class='field-data'>" + att.projectid + "</span><br>";
+      }
+      if (att.udot_pin) {
+        fields += "<span class='field-heading'>UDOT Pin: </span><span class='field-data'>" + att.udot_pin + "</span><br>";
+      }
+      if (att.exploration_type) {
+        fields += "<span class='field-heading'>Exploration Type: </span><span class='field-data'>" + att.exploration_type + "</span><br>";
+      }
+      if (att.exploration_equiptment) {
+        fields += "<span class='field-heading'>Exploration Equipment: </span><span class='field-data'>" + att.exploration_equiptment + "</span><br>";
+      }
+      if (att.hammer_type) {
+        fields += "<span class='field-heading'>SPT Hammer Type: </span><span class='field-data'>" + att.hammer_type + "</span><br>";
+      }
+      if (att.coordinate_source) {
+        fields += "<span class='field-heading'>Coordinate Source: </span><span class='field-data'>" + att.coordinate_source + "</span><br>";
+      }
+      if (att.elevation_source) {
+        fields += "<span class='field-heading'>Elevation Source: </span><span class='field-data'>" + att.elevation_source + "</span><br>";
+      }
+      if (att.enteredby) {
+        fields += "<span class='field-heading'>Entered By: </span><span class='field-data'>" + att.enteredby + "</span><br>";
+      }
+      if (att.ugs_gdid) {
+        fields += "<span class='field-heading'>UGS GID: </span><span class='field-data'>" + att.ugs_gdid + "</span><br>";
+      }
+      if (att.boreid) {
+        fields += "<span class='field-heading'>BoreID: </span><span class='field-data'>" + att.boreid + "</span><br>";
+      }
+      if (att.notes) {
+        fields += "<span class='field-heading'>Exploration Notes: </span><span class='field-data'>" + att.notes + "</span><br>";
+      }
+      fields += "<br>";
 
-                showHideCalcitePanels("#panelData", "#collapseData");
-                $('#projectDetails').empty();
-                $('#projectDetails').append(fields);
-              })
-              .catch(error => console.error('Error fetching main table data:', error));
+      showHideCalcitePanels("#panelData", "#collapseData");
+      $('#projectDetails').empty();
+      $('#projectDetails').append(fields);
+    })
+    .catch(error => console.error('Error fetching main table data:', error));
 
-            // #2 get the UNIT DATA ----------------------------
-            fetch(`https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app/borehole_unit_table?boreid=eq.${id}`, {
-              headers: headers
-            })
-              .then(response => response.json())
-              .then(results => {
-                var fields = "";
+  // #2 get the UNIT DATA ----------------------------
+  fetch(`https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app/borehole_unit_table?boreid=eq.${id}`, {
+    headers: headers
+  })
+    .then(response => response.json())
+    .then(results => {
+      var fields = "";
 
-                // total number of units
-                console.log("UNIT DATA RESULTS");
-                console.log(results);
-                fields += "<span class='field-heading'>Total Units: </span> <span class='field-data'>" + results.length + " </span><br>";
+      // total number of units
+      console.log("UNIT DATA RESULTS");
+      console.log(results);
+      fields += "<span class='field-heading'>Total Units: </span> <span class='field-data'>" + results.length + " </span><br>";
 
-                // uscs organizations
-                var orgs = results.map(result => result.uscs);
-                fields += "<span class='field-heading'>USCS Identified: </span> <span class='field-data'>" + orgs.join(", ") + " </span><br>";
-                
-                // max depth
-                var maxarray = results.map(result => Number(result.lowerdepth));
-                var maxdp = Math.max(...maxarray.filter(n => !isNaN(n)));
-                fields += "<span class='field-heading'>Maximum Depth: </span> <span class='field-data'>" + maxdp + " ft</span><br>";
+      // uscs organizations
+      var orgs = results.map(result => result.uscs);
+      fields += "<span class='field-heading'>USCS Identified: </span> <span class='field-data'>" + orgs.join(", ") + " </span><br>";
+      
+      // max depth
+      var maxarray = results.map(result => Number(result.lowerdepth));
+      var maxdp = Math.max(...maxarray.filter(n => !isNaN(n)));
+      fields += "<span class='field-heading'>Maximum Depth: </span> <span class='field-data'>" + maxdp + " ft</span><br>";
 
-                $('#unitData').empty();
-                $('#unitData').append(fields);
+      $('#unitData').empty();
+      $('#unitData').append(fields);
 
-                var fields2 = "<br>";
-                
-                results.forEach(att => {
-                  fields2 += "<div class='ibox'>";
-                  if (att.unitname) {
-                    fields2 += "<span class='field-heading-sm'>Unit Name: </span> <span class='field-data-sm'>" + check(att.unitname) + " | </span>";
-                  }
-                  if (att.upperdepth || att.lowerdepth) {
-                    if (att.upperdepth == 0) att.upperdepth = "0";
-                    fields2 += "<span class='field-heading-sm'>Unit Thickness: </span> <span class='field-data-sm'>" + check(att.upperdepth) + "-" + check(att.lowerdepth) + "ft | </span>";
-                  }
-                  if (att.uscs) {
-                    fields2 += "<span class='field-heading-sm'>USCS: </span> <span class='field-data-sm'>" + att.uscs + " | </span>";
-                  }
-                  if (att.fieldmoisture) {
-                    fields2 += "<span class='field-heading-sm'>Moisture: </span> <span class='field-data-sm'>" + att.fieldmoisture + " | </span>";
-                  }
-                  if (att.fieldcolor) {
-                    fields2 += "<span class='field-heading-sm'>Color: </span> <span class='field-data-sm'>" + att.fieldcolor + " | </span>";
-                  }
-                  if (att.fielddensity) {
-                    fields2 += "<span class='field-heading-sm'>Density: </span> <span class='field-data-sm'>" + att.fielddensity + " | </span>";
-                  }
-                  if (att.fieldconsistency) {
-                    fields2 += "<span class='field-heading-sm'>Consistency: </span> <span class='field-data-sm'>" + att.fieldconsistency + " | </span>";
-                  }
-                  if (att.notes) {
-                    fields2 += "<span class='field-heading-sm'>Unit Notes: </span> <span class='field-data-sm'>" + check(att.notes) + " </span><br>";
-                  }
-                  fields2 += "</div>";
-                  fields2 += "<br>";
-                });
-                
-                $('#unitDataExpand').empty();
-                $('#unitDataExpand').append(fields2);
-              })
-              .catch(error => console.error('Error fetching unit data:', error));
+      var fields2 = "<br>";
+      
+      results.forEach(att => {
+        fields2 += "<div class='ibox'>";
+        if (att.unitname) {
+          fields2 += "<span class='field-heading-sm'>Unit Name: </span> <span class='field-data-sm'>" + check(att.unitname) + " | </span>";
+        }
+        if (att.upperdepth || att.lowerdepth) {
+          if (att.upperdepth == 0) att.upperdepth = "0";
+          fields2 += "<span class='field-heading-sm'>Unit Thickness: </span> <span class='field-data-sm'>" + check(att.upperdepth) + "-" + check(att.lowerdepth) + "ft | </span>";
+        }
+        if (att.uscs) {
+          fields2 += "<span class='field-heading-sm'>USCS: </span> <span class='field-data-sm'>" + att.uscs + " | </span>";
+        }
+        if (att.fieldmoisture) {
+          fields2 += "<span class='field-heading-sm'>Moisture: </span> <span class='field-data-sm'>" + att.fieldmoisture + " | </span>";
+        }
+        if (att.fieldcolor) {
+          fields2 += "<span class='field-heading-sm'>Color: </span> <span class='field-data-sm'>" + att.fieldcolor + " | </span>";
+        }
+        if (att.fielddensity) {
+          fields2 += "<span class='field-heading-sm'>Density: </span> <span class='field-data-sm'>" + att.fielddensity + " | </span>";
+        }
+        if (att.fieldconsistency) {
+          fields2 += "<span class='field-heading-sm'>Consistency: </span> <span class='field-data-sm'>" + att.fieldconsistency + " | </span>";
+        }
+        if (att.notes) {
+          fields2 += "<span class='field-heading-sm'>Unit Notes: </span> <span class='field-data-sm'>" + check(att.notes) + " </span><br>";
+        }
+        fields2 += "</div>";
+        fields2 += "<br>";
+      });
+      
+      $('#unitDataExpand').empty();
+      $('#unitDataExpand').append(fields2);
+    })
+    .catch(error => console.error('Error fetching unit data:', error));
 
-            // #3 get the BORE SAMPLE DATA ----------------------------
-            fetch(`https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app/borehole_sample_table?boreid=eq.${id}`, {
-              headers: headers
-            })
-              .then(response => response.json())
-              .then(results => {
-                console.log(results);
-                var fields = "";
+  // #3 get the BORE SAMPLE DATA ----------------------------
+  fetch(`https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app/borehole_sample_table?boreid=eq.${id}`, {
+    headers: headers
+  })
+    .then(response => response.json())
+    .then(results => {
+      console.log(results);
+      var fields = "";
 
-                // total number of samples
-                fields += "<span class='field-heading'>Total Samples: </span> <span class='field-data'>" + results.length + " </span><br>";
+      // total number of samples
+      fields += "<span class='field-heading'>Total Samples: </span> <span class='field-data'>" + results.length + " </span><br>";
 
-                // sample types
-                var orgs = [...new Set(results.map(result => result.samplemethod))];
-                fields += "<span class='field-heading'>Sample Types: </span> <span class='field-data'>" + orgs.join(", ") + " </span><br>";
+      // sample types
+      var orgs = [...new Set(results.map(result => result.samplemethod))];
+      fields += "<span class='field-heading'>Sample Types: </span> <span class='field-data'>" + orgs.join(", ") + " </span><br>";
 
-                // max/min N values
-                var maxarray = results.map(result => Number(result.nvalue));
-                var max = Math.max(...maxarray.filter(n => !isNaN(n)));
-                var min = Math.min(...maxarray.filter(n => !isNaN(n)));
-                if (max !== 0 && Number.isFinite(max)) {
-                  fields += "<span class='field-heading'>N-Value Range: </span> <span class='field-data'>" + min + "-" + max + " blows/ft</span><br>";
-                }
+      // max/min N values
+      var maxarray = results.map(result => Number(result.nvalue));
+      var max = Math.max(...maxarray.filter(n => !isNaN(n)));
+      var min = Math.min(...maxarray.filter(n => !isNaN(n)));
+      if (max !== 0 && Number.isFinite(max)) {
+        fields += "<span class='field-heading'>N-Value Range: </span> <span class='field-data'>" + min + "-" + max + " blows/ft</span><br>";
+      }
 
-                // Check for grain size data
-                var yesNo = results.some(result => 
-                  result.gravel_percent || result.sand_percent || result.fines_percent
-                );
-                yesNo = yesNo ? "Yes" : "No Data";
-                fields += "<span class='field-heading'>Contains Grain Size %: </span> <span class='field-data'>" + yesNo + "</span><br>";
+      // Check for grain size data
+      var yesNo = results.some(result => 
+        result.gravel_percent || result.sand_percent || result.fines_percent
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Contains Grain Size %: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-                // Check for moisture/density data
-                yesNo = results.some(result =>
-                  result.labmoisture_percent || result.labdrydensity_pcf
-                );
-                yesNo = yesNo ? "Yes" : "No Data";
-                fields += "<span class='field-heading'>Moisture or Density Results: </span> <span class='field-data'>" + yesNo + "</span><br>";
+      // Check for moisture/density data
+      yesNo = results.some(result =>
+        result.labmoisture_percent || result.labdrydensity_pcf
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Moisture or Density Results: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-                // Check for Atterberg limits
-                yesNo = results.some(result =>
-                  result.pl || result.ll
-                );
-                yesNo = yesNo ? "Yes" : "No Data";
-                fields += "<span class='field-heading'>Contains Atterberg Limits: </span> <span class='field-data'>" + yesNo + "</span><br>";
+      // Check for Atterberg limits
+      yesNo = results.some(result =>
+        result.pl || result.ll
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Contains Atterberg Limits: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-                // Check for soil consolidation data
-                yesNo = results.some(result =>
-                  result.sct_dry || result.sct
-                );
-                yesNo = yesNo ? "Yes" : "No Data";
-                fields += "<span class='field-heading'>Soil Consolidation % Range: </span> <span class='field-data'>" + yesNo + "</span><br>";
+      // Check for soil consolidation data
+      yesNo = results.some(result =>
+        result.sct_dry || result.sct
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Soil Consolidation % Range: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-                // Check for shear data
-                yesNo = results.some(result =>
-                  result.shear_type || result.shearangle_degree || result.shearcohesion_psi
-                );
-                yesNo = yesNo ? "Yes" : "No Data";
-                fields += "<span class='field-heading'>Contains Shear Data: </span> <span class='field-data'>" + yesNo + "</span><br>";
+      // Check for shear data
+      yesNo = results.some(result =>
+        result.shear_type || result.shearangle_degree || result.shearcohesion_psi
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Contains Shear Data: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-                // Check for chemical data
-                yesNo = results.some(result =>
-                  result.resistivity_ohm_cm || result.chlorides_ppm || result.organics_percent_weight || result.ph
-                );
-                yesNo = yesNo ? "Yes" : "No Data";
-                fields += "<span class='field-heading'>Contains Chemical Results: </span> <span class='field-data'>" + yesNo + "</span><br>";
+      // Check for chemical data
+      yesNo = results.some(result =>
+        result.resistivity_ohm_cm || result.chlorides_ppm || result.organics_percent_weight || result.ph
+      );
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Contains Chemical Results: </span> <span class='field-data'>" + yesNo + "</span><br>";
 
-                // Check for notes
-                yesNo = results.some(result => result.notes);
-                yesNo = yesNo ? "Yes" : "No Data";
-                fields += "<span class='field-heading'>Sample Notes: </span> <span class='field-data'>" + yesNo + "</span>";
+      // Check for notes
+      yesNo = results.some(result => result.notes);
+      yesNo = yesNo ? "Yes" : "No Data";
+      fields += "<span class='field-heading'>Sample Notes: </span> <span class='field-data'>" + yesNo + "</span>";
 
-                fields += "<br>";
-                $('#samplingData').empty();
-                $('#samplingData').append(fields);
+      fields += "<br>";
+      $('#samplingData').empty();
+      $('#samplingData').append(fields);
 
-                var fields3 = "<br>";
-                results.forEach(att => {
-                  fields3 += "<div class='ibox'>";
+      var fields3 = "<br>";
+      results.forEach(att => {
+        fields3 += "<div class='ibox'>";
 
-                  if (att.samplenumber) {
-                    fields3 += "<span class='field-heading-sm'>Sample Number: </span> <span class='field-data-sm'>" + att.samplenumber + "</span> | ";
-                  }
-                  if (att.samplelower_depth) {
-                    fields3 += "<span class='field-heading-sm'>Sample Depth Range: </span> <span class='field-data-sm'>" + att.samplelower_depth + "-" + att.sampleupperdepth + " ft</span> | ";
-                  }
-                  if (att.samplemethod) {
-                    fields3 += "<span class='field-heading-sm'>Sample Method: </span> <span class='field-data-sm'>" + att.samplemethod + "</span> | ";
-                  }
-                  if (att.nvalue) {
-                    fields3 += "<span class='field-heading-sm'>N Value: </span> <span class='field-data-sm'>" + att.nvalue + "</span> | ";
-                  }
-                  if (att.gravel_percent) {
-                    fields3 += "<span class='field-heading-sm'>Gravel %: </span> <span class='field-data-sm'>" + att.gravel_percent + "</span> | ";
-                  }
-                  if (att.sand_percent) {
-                    fields3 += "<span class='field-heading-sm'>Sand %: </span> <span class='field-data-sm'>" + att.sand_percent + "</span> | ";
-                  }
-                  if (att.fines_percent) {
-                    fields3 += "<span class='field-heading-sm'>Fines %: </span> <span class='field-data-sm'>" + att.fines_percent + "</span> | ";
-                  }
-                  if (att.labmoisture) {
-                    fields3 += "<span class='field-heading-sm'>Moisture: </span> <span class='field-data-sm'>" + att.labmoisture + "</span> | ";
-                  }
-                  if (att.labdrydensity) {
-                    fields3 += "<span class='field-heading-sm'>Dry Density: </span> <span class='field-data-sm'>" + att.labdrydensity + "</span> | ";
-                  }
-                  if (att.ll) {
-                    fields3 += "<span class='field-heading-sm'>Liquid Limit: </span> <span class='field-data-sm'>" + att.ll + "</span> | ";
-                  }
-                  if (att.pl) {
-                    fields3 += "<span class='field-heading-sm'>Plastic Limit: </span> <span class='field-data-sm'>" + att.pl + "</span> | ";
-                  }
-                  if (att.pi) {
-                    fields3 += "<span class='field-heading-sm'>Plasticity Index: </span> <span class='field-data-sm'>" + att.pi + "</span> | ";
-                  }
-                  if (att.sct) {
-                    fields3 += "<span class='field-heading-sm'>Soil Consolidation %: </span> <span class='field-data-sm'>" + att.sct + "</span> | ";
-                  }
-                  if (att.sct_dry_percent) {
-                    fields3 += "<span class='field-heading-sm'>Dry Soil Consolidation %: </span> <span class='field-data-sm'>" + att.sct_dry_percent + "</span> | ";
-                  }
-                  if (att.shear_type) {
-                    fields3 += "<span class='field-heading-sm'>Shear Type (degrees): </span> <span class='field-data-sm'>" + att.shear_type + "</span> | ";
-                  }
-                  if (att.shearangle_degree) {
-                    fields3 += "<span class='field-heading-sm'>Shear Angle: </span> <span class='field-data-sm'>" + att.shearangle_degree + "</span> | ";
-                  }
-                  if (att.shearcohesion_psi) {
-                    fields3 += "<span class='field-heading-sm'>Shear Cohesion: </span> <span class='field-data-sm'>" + att.shearcohesion_psi+ "</span> | ";
+        if (att.samplenumber) {
+          fields3 += "<span class='field-heading-sm'>Sample Number: </span> <span class='field-data-sm'>" + att.samplenumber + "</span> | ";
+        }
+        if (att.samplelower_depth) {
+          fields3 += "<span class='field-heading-sm'>Sample Depth Range: </span> <span class='field-data-sm'>" + att.samplelower_depth + "-" + att.sampleupperdepth + " ft</span> | ";
+        }
+        if (att.samplemethod) {
+          fields3 += "<span class='field-heading-sm'>Sample Method: </span> <span class='field-data-sm'>" + att.samplemethod + "</span> | ";
+        }
+        if (att.nvalue) {
+          fields3 += "<span class='field-heading-sm'>N Value: </span> <span class='field-data-sm'>" + att.nvalue + "</span> | ";
+        }
+        if (att.gravel_percent) {
+          fields3 += "<span class='field-heading-sm'>Gravel %: </span> <span class='field-data-sm'>" + att.gravel_percent + "</span> | ";
+        }
+        if (att.sand_percent) {
+          fields3 += "<span class='field-heading-sm'>Sand %: </span> <span class='field-data-sm'>" + att.sand_percent + "</span> | ";
+        }
+        if (att.fines_percent) {
+          fields3 += "<span class='field-heading-sm'>Fines %: </span> <span class='field-data-sm'>" + att.fines_percent + "</span> | ";
+        }
+        if (att.labmoisture) {
+          fields3 += "<span class='field-heading-sm'>Moisture: </span> <span class='field-data-sm'>" + att.labmoisture + "</span> | ";
+        }
+        if (att.labdrydensity) {
+          fields3 += "<span class='field-heading-sm'>Dry Density: </span> <span class='field-data-sm'>" + att.labdrydensity + "</span> | ";
+        }
+        if (att.ll) {
+          fields3 += "<span class='field-heading-sm'>Liquid Limit: </span> <span class='field-data-sm'>" + att.ll + "</span> | ";
+        }
+        if (att.pl) {
+          fields3 += "<span class='field-heading-sm'>Plastic Limit: </span> <span class='field-data-sm'>" + att.pl + "</span> | ";
+        }
+        if (att.pi) {
+          fields3 += "<span class='field-heading-sm'>Plasticity Index: </span> <span class='field-data-sm'>" + att.pi + "</span> | ";
+        }
+        if (att.sct) {
+          fields3 += "<span class='field-heading-sm'>Soil Consolidation %: </span> <span class='field-data-sm'>" + att.sct + "</span> | ";
+        }
+        if (att.sct_dry_percent) {
+          fields3 += "<span class='field-heading-sm'>Dry Soil Consolidation %: </span> <span class='field-data-sm'>" + att.sct_dry_percent + "</span> | ";
+        }
+        if (att.shear_type) {
+          fields3 += "<span class='field-heading-sm'>Shear Type (degrees): </span> <span class='field-data-sm'>" + att.shear_type + "</span> | ";
+        }
+        if (att.shearangle_degree) {
+          fields3 += "<span class='field-heading-sm'>Shear Angle: </span> <span class='field-data-sm'>" + att.shearangle_degree + "</span> | ";
+        }
+        if (att.shearcohesion_psi) {
+          fields3 += "<span class='field-heading-sm'>Shear Cohesion: </span> <span class='field-data-sm'>" + att.shearcohesion_psi+ "</span> | ";
                   }
                   if (att.resistivity_ohm_cm){
-                    fields3 += "<span class='field-heading-sm'>Resistivity (ohm-cm): </span> <span class='field-data-sm'>" + att.resistivity_ohm_cm+ "</span> | ";
+                        fields3 += "<span class='field-heading-sm'>Resistivity (ohm-cm): </span> <span class='field-data-sm'>" + att.resistivity_ohm_cm+ "</span> | ";
                   }
                   if (att.sulfates_ppm){
-                    fields3 += "<span class='field-heading-sm'>Sulfates (ppm): </span> <span class='field-data-sm'>" + att.sulfates_ppm+ "</span> | ";
+                        fields3 += "<span class='field-heading-sm'>Sulfates (ppm): </span> <span class='field-data-sm'>" + att.sulfates_ppm+ "</span> | ";
                   }
                   if (att.chlorides_ppm){
-                    fields3 += "<span class='field-heading-sm'>Chlorides (ppm): </span> <span class='field-data-sm'>" + att.chlorides_ppm+ "</span> | ";
+                        fields3 += "<span class='field-heading-sm'>Chlorides (ppm): </span> <span class='field-data-sm'>" + att.chlorides_ppm+ "</span> | ";
                   }
                   if (att.organics_percent_weight){
-                    fields3 += "<span class='field-heading-sm'>Organics (weight %): </span> <span class='field-data-sm'>" + att.organics_percent_weight+ "</span> | ";
+                        fields3 += "<span class='field-heading-sm'>Organics (weight %): </span> <span class='field-data-sm'>" + att.organics_percent_weight+ "</span> | ";
                   }
                   if (att.ph){
-                    fields3 += "<span class='field-heading-sm'>pH: </span> <span class='field-data-sm'>" + att.ph+ "</span> | ";
+                        fields3 += "<span class='field-heading-sm'>pH: </span> <span class='field-data-sm'>" + att.ph+ "</span> | ";
                   }
                   if (att.notes){
-                    fields3 += "<span class='field-heading-sm'>Sample Notes: </span> <span class='field-data-sm'>" + att.notes+ "</span> | ";
+                        fields3 += "<span class='field-heading-sm'>Sample Notes: </span> <span class='field-data-sm'>" + att.notes+ "</span> | ";
                   }
                   fields3 += "</div>";
                   fields3 += "<br>";
@@ -985,7 +819,7 @@
               $('#samplingDataExpand').empty();
               $('#samplingDataExpand').append(fields3);
           })
-          .catch(error => console.error('Error fetching sample data:', error));
+
 
       } // end queryRelated Function
 
@@ -1011,138 +845,254 @@
           });
       });
 
-      // Watching for map extent changes and updating feature count
-      mapView.watch(["extent", "stationary"], function() {
-        // Only query when the view is stationary to prevent excessive requests
-        if (!mapView.stationary) {
-          return;
-        }
+// Watching for map extent changes and updating feature count
+mapView.watch(["extent", "stationary"], function() {
+  // Only query when the view is stationary to prevent excessive requests
+  if (!mapView.stationary) {
+    return;
+  }
 
-        // Create query parameters for visible features
-        const query = {
-          where: "1=1",  // Return all features
-          geometry: mapView.extent,
-          spatialRelationship: "intersects",
-          outFields: ["*"],
-          returnGeometry: false,
-          returnCountOnly: true  // More efficient than returning features
-        };
+  // Create query parameters for visible features
+  const query = {
+    where: "1=1",  // Return all features
+    geometry: mapView.extent,
+    spatialRelationship: "intersects",
+    outFields: ["*"],
+    returnGeometry: false,
+    returnCountOnly: true  // More efficient than returning features
+  };
 
-        // Query the WFS layer
-        layer.queryFeatureCount(query)
-          .then(function(count) {
-            let displayCount = count;
-            if (count >= 1000) {
-              displayCount = "More than 1000";
-            }
-            document.getElementById('statsDiv').innerHTML = "Visible Feature Count = " + displayCount;
-          })
-          .catch(function(error) {
-            console.error("Error getting feature count:", error);
-            document.getElementById('statsDiv').innerHTML = "Feature Count Unavailable";
-          });
+  // Query the WFS layer
+  layer.queryFeatureCount(query)
+    .then(function(count) {
+      let displayCount = count;
+      if (count >= 1000) {
+        displayCount = "More than 1000";
+      }
+      document.getElementById('statsDiv').innerHTML = "Visible Feature Count = " + displayCount;
+    })
+    .catch(function(error) {
+      console.error("Error getting feature count:", error);
+      document.getElementById('statsDiv').innerHTML = "Feature Count Unavailable";
+    });
+});
+
+
+      /*
+      mapView.on("click", function (event) {
+          //clearMap();
+          queryFeatures(event);
       });
+
+      function queryFeatures(screenPoint) {
+          console.log("starting query");
+          const point = mapView.toMap(screenPoint);
+
+          // Query the for the feature ids where the user clicked
+          layer
+            .queryObjectIds({
+              geometry: point,
+              spatialRelationship: "intersects",
+              returnGeometry: false,
+              outFields: ["*"]
+            })
+
+            .then(function (objectIds) {
+              console.log("The object Ids are: "+objectIds);
+              if (!(objectIds) || objectIds.length == 0) {
+                console.log("no object id found");
+                return;
+              }
+
+              // Highlight the area returned from the first query
+              mapView.whenLayerView(layer).then(function (layerView) {
+                if (highlight) {
+                  highlight.remove();
+                }
+                highlight = layerView.highlight(objectIds);
+              });
+
+              console.log(layer.relationships[0].id);
+              // Query the for the related features for the features ids found
+              return layer.queryRelatedFeatures({
+                outFields: ["*"],
+                relationshipId: layer.relationships[0].id,
+                objectIds: objectIds
+              });
+              console.log("working on query here");
+            })
+            .then(function (relatedFeatureSetByObjectId) {
+              if (!relatedFeatureSetByObjectId) {
+                console.log("found nada");
+                return;
+              }
+              // Create a grid with the data
+              Object.keys(relatedFeatureSetByObjectId).forEach(function (
+                objectId
+              ) {
+                // get the attributes of the FeatureSet
+                const relatedFeatureSet = relatedFeatureSetByObjectId[objectId];
+                const rows = relatedFeatureSet.features.map(function (feature) {
+                  return feature.attributes;
+                });
+
+                if (!rows.length) {
+                  console.log("no rows here");
+                  return;
+                }
+
+                console.log(rows);
+
+
+              });
+            });
+
+          }; // end function     
+      */
+
+
+
+
+
+
+
+
         
-        // Calcite Popup and panel sync
-        mapView.when(function(){
-          CalciteMapArcGISSupport.setPopupPanelSync(mapView);
-        });
-        // Search - add to navbar
-        var searchWidget = new Search({
-          container: "searchWidgetDiv",
-          view: mapView,
-          includeDefaultSources: false,	// suppress auto locator (search places appears as a default)
-          locationEnabled: true,  //default true
-          minSuggestCharacters: 3,    //start giving suggestions at 3
-          maxSuggestions: 20,
-          maxResults: 30,     //default 6
-          searchAllEnabled: false,   //default is true
-          sources: [{
-                layer: new WFSLayer({
-                  url: "https://ugs-geoserver-prod-flbcoqv7oa-uc.a.run.app/geoserver/wfs",
-            name: "borehole_locations",
-            namespaceUri: "hazards",
-            id: "locations",
-            outFields: ["*"],
-                }),
-                autoNavigate: true,	//don't auto zoom in on the feature  //default true
-                searchFields: ["boreid", "project_name", "projectid"],
-                displayField: "boreid",
-                name: "Borehole ID/ Project Name",
-                placeholder: "D-M12-17-1985",
-                popupEnabled: true,
-                outFields: ["*"], 
-                popupTemplate: popupTemplate,
-                zoomScale: 100000,
-                resultSymbol: {
-                    type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
-                    color: [236, 255, 11],
-                    style: "circle",
-                    outline: {
-                      // autocasts as new SimpleLineSymbol()
-                      color: [255, 255, 255],
-                      width: 2
-                    }
-                  },
-                //resultSymbol: fillSymbol,
-            }]
-
-        });
-
-
-        CalciteMapArcGISSupport.setSearchExpandEvents(searchWidget);
-        // Map widgets
-        var home = new Home({
-          view: mapView
-        });
-        mapView.ui.add(home, "top-left");
-        var zoom = new Zoom({
-          view: mapView
-        });
-        mapView.ui.add(zoom, "top-left");
-        var compass = new Compass({
-          view: mapView
-        });
-        mapView.ui.add(compass, "top-left");
-        
-        var basemapToggle = new BasemapToggle({
-          view: mapView,
-          secondBasemap: "satellite"
-        });
-        mapView.ui.add(basemapToggle, "bottom-right");          
-        
-        var scaleBar = new ScaleBar({
-          view: mapView
-        });
-        mapView.ui.add(scaleBar, "bottom-left");
-        var attribution = new Attribution({
-          view: mapView
-        });
-        mapView.ui.add(attribution, "manual");
-
-        // Panel widgets - add legend
-        var legendWidget = new Legend({
-          container: "legendDiv",
-          view: mapView,
-          layerInfos: [{
-            layer: layer,
-            title: "Exploration Method"
+      // Calcite Popup and panel sync
+      mapView.when(function(){
+        CalciteMapArcGISSupport.setPopupPanelSync(mapView);
+      });
+      // Search - add to navbar
+      var searchWidget = new Search({
+        container: "searchWidgetDiv",
+        view: mapView,
+        includeDefaultSources: false,	// suppress auto locator (search places appears as a default)
+        locationEnabled: true,  //default true
+        minSuggestCharacters: 3,    //start giving suggestions at 3
+        maxSuggestions: 20,
+        maxResults: 30,     //default 6
+        searchAllEnabled: false,   //default is true
+        sources: [{
+              layer: new WFSLayer({
+                url: "https://ugs-geoserver-prod-flbcoqv7oa-uc.a.run.app/geoserver/wfs",
+          name: "borehole_locations",
+          namespaceUri: "hazards",
+          id: "locations",
+          outFields: ["*"],
+              }),
+              autoNavigate: true,	//don't auto zoom in on the feature  //default true
+              searchFields: ["boreid", "project_name", "projectid"],
+              displayField: "boreid",
+              name: "Borehole ID/ Project Name",
+              placeholder: "D-M12-17-1985",
+              popupEnabled: true,
+              outFields: ["*"], 
+              popupTemplate: popupTemplate,
+              zoomScale: 100000,
+              resultSymbol: {
+                  type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
+                  color: [236, 255, 11],
+                  style: "circle",
+                  outline: {
+                    // autocasts as new SimpleLineSymbol()
+                    color: [255, 255, 255],
+                    width: 2
+                  }
+                },
+              //resultSymbol: fillSymbol,
           }]
-        });
 
-        // Panel widgets - add layers
-        var legendWidget = new LayerList({
-          container: "layersDiv",
-          view: mapView
-        });
+      });
 
-        } // end continueMapInitialization function
-    
-    }); // end require function
+
+      CalciteMapArcGISSupport.setSearchExpandEvents(searchWidget);
+      // Map widgets
+      var home = new Home({
+        view: mapView
+      });
+      mapView.ui.add(home, "top-left");
+      var zoom = new Zoom({
+        view: mapView
+      });
+      mapView.ui.add(zoom, "top-left");
+      var compass = new Compass({
+        view: mapView
+      });
+      mapView.ui.add(compass, "top-left");
+      
+      var basemapToggle = new BasemapToggle({
+        view: mapView,
+        secondBasemap: "satellite"
+      });
+      mapView.ui.add(basemapToggle, "bottom-right");          
+      
+      var scaleBar = new ScaleBar({
+        view: mapView
+      });
+      mapView.ui.add(scaleBar, "bottom-left");
+      var attribution = new Attribution({
+        view: mapView
+      });
+      mapView.ui.add(attribution, "manual");
+
+      // Panel widgets - add legend
+      var legendWidget = new Legend({
+        container: "legendDiv",
+        view: mapView,
+        layerInfos: [{
+          layer: layer,
+          title: "Exploration Method"
+        }]
+      });
+
+      // Panel widgets - add layers
+      var legendWidget = new LayerList({
+        container: "layersDiv",
+        view: mapView
+      });
+      
+      /* have legend always open?
+      var legend = new Legend({
+        view: mapView,
+        layerInfos: [{
+          layer: featureLayer,
+          title: "Legend"
+        }]
+      });
+      mapView.ui.add(legend, "bottom-left"); 
+      */
+
+
+
+    });
   </script>
 
   <!-- jQuery (for Bootstrap's JavaScript plugins). NOTE: You can also use pure Dojo. See examples. -->
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-analytics.js";
+    // TODO: Add SDKs for Firebase products that you want to use
+    // https://firebase.google.com/docs/web/setup#available-libraries
+  
+    // Your web app's Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+      apiKey: "AIzaSyAi0ecBg7dfitM9Num5n7onxZATDSPaC_o",
+      authDomain: "ut-dnr-ugs-borehole-prod.firebaseapp.com",
+      projectId: "ut-dnr-ugs-borehole-prod",
+      storageBucket: "ut-dnr-ugs-borehole-prod.appspot.com",
+      messagingSenderId: "78333091254",
+      appId: "1:78333091254:web:993c44895c1ea385dc3517",
+      measurementId: "G-QP1XVRTH4Q"
+    };
+  
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+  </script>
 
 </body>
 </html>
