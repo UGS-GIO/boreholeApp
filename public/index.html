@@ -109,6 +109,43 @@
   height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <!-- End Google Tag Manager (noscript) -->
 
+  <!-- jQuery (for Bootstrap's JavaScript plugins). NOTE: You can also use pure Dojo. See examples. -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+
+
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-functions-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
+
+<script type="text/javascript">
+    // Initialize Firebase directly in the HTML
+    document.addEventListener('DOMContentLoaded', function() {
+        // Your Firebase configuration
+        const firebaseConfig = {
+      apiKey: "AIzaSyAi0ecBg7dfitM9Num5n7onxZATDSPaC_o",
+      authDomain: "ut-dnr-ugs-borehole-prod.firebaseapp.com",
+      projectId: "ut-dnr-ugs-borehole-prod",
+      storageBucket: "ut-dnr-ugs-borehole-prod.appspot.com",
+      messagingSenderId: "78333091254",
+      appId: "1:78333091254:web:993c44895c1ea385dc3517",
+      measurementId: "G-QP1XVRTH4Q"
+        };
+
+        // Initialize Firebase
+        try {
+            firebase.initializeApp(firebaseConfig);
+            const analytics = firebase.analytics();
+            console.log("Firebase initialized successfully in HTML");
+            
+            // Set global variable to indicate Firebase is ready
+            window.firebaseReady = true;
+        } catch (error) {
+            console.error("Firebase initialization error in HTML:", error);
+        }
+    });
+</script>
+
 
   <!-- Navbar -->
 
@@ -1281,42 +1318,7 @@ mapView.watch(["extent", "stationary"], function() {
     });
   </script>
 
-  <!-- jQuery (for Bootstrap's JavaScript plugins). NOTE: You can also use pure Dojo. See examples. -->
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-
-
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-functions-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
-
-<script type="text/javascript">
-    // Initialize Firebase directly in the HTML
-    document.addEventListener('DOMContentLoaded', function() {
-        // Your Firebase configuration
-        const firebaseConfig = {
-      apiKey: "AIzaSyAi0ecBg7dfitM9Num5n7onxZATDSPaC_o",
-      authDomain: "ut-dnr-ugs-borehole-prod.firebaseapp.com",
-      projectId: "ut-dnr-ugs-borehole-prod",
-      storageBucket: "ut-dnr-ugs-borehole-prod.appspot.com",
-      messagingSenderId: "78333091254",
-      appId: "1:78333091254:web:993c44895c1ea385dc3517",
-      measurementId: "G-QP1XVRTH4Q"
-        };
-
-        // Initialize Firebase
-        try {
-            firebase.initializeApp(firebaseConfig);
-            const analytics = firebase.analytics();
-            console.log("Firebase initialized successfully in HTML");
-            
-            // Set global variable to indicate Firebase is ready
-            window.firebaseReady = true;
-        } catch (error) {
-            console.error("Firebase initialization error in HTML:", error);
-        }
-    });
-</script>
+  
 
 </body>
 </html>
