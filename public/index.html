@@ -312,84 +312,6 @@
   <!-- ArcGIS JS 4 -->
   <script src="https://js.arcgis.com/4.21/"></script>
 
-  <!-- <script>
-    let arcgisToken = null; // Global variable for the token
-    const projectName = 'https://us-central1-ut-dnr-ugs-geolmapportal-prod.cloudfunctions.net'; // Cloud Function URL base
-  
-    // Function to initialize Firebase Auth and get token
-    window.initializeFirebase = function(auth, functions) {
-      console.log('Initializing Firebase...');
-      if (!auth || !functions) {
-        console.error("Firebase Auth or Functions not available");
-        continueMapInitialization(); // Proceed without token attempt
-        return;
-      }
-  
-      try {
-        // Handle authentication state changes
-        onAuthStateChanged(auth, function(user) {
-          if (user) {
-            console.log('User is signed in:', user.uid);
-            // Get ArcGIS token after successful auth
-            getArcGISToken(functions);
-          } else {
-            console.log('No user signed in, signing in anonymously...');
-            signInAnonymously(auth)
-              .catch(function(error) {
-                console.error('Anonymous sign-in error:', error);
-                continueMapInitialization(); // Proceed even if anonymous sign-in fails
-              });
-          }
-        });
-      } catch (error) {
-        console.error('Firebase initialization error:', error);
-        continueMapInitialization(); // Proceed without Firebase
-      }
-    }
-  
-    // Function to get ArcGIS token using Firebase Cloud Function
-    function getArcGISToken(functions) {
-      console.log('Getting ArcGIS token...');
-  
-      try {
-        const getArcGISTokenFn = httpsCallable(functions, 'getArcGISToken');
-        
-        getArcGISTokenFn()
-          .then(function(result) {
-            // Read the token from the result and set to global variable
-            arcgisToken = result.data.token;
-            console.log('ArcGIS token received:', arcgisToken ? 'Token received successfully' : 'No token received');
-            
-            // Continue with map initialization
-            continueMapInitialization();
-          })
-          .catch(function(error) {
-            console.error('Error getting ArcGIS token:', error);
-            
-            // Continue with map initialization without loading the secured layer
-            continueMapInitialization();
-          });
-      } catch (error) {
-        console.error('Error calling token function:', error);
-        
-        // Continue with map initialization without the token or secured layer
-        continueMapInitialization();
-      }
-    }
-  
-    // Function to continue initialization after Firebase/token attempt
-    function continueMapInitialization() {
-      console.log('Continuing map initialization...');
-      // If mapLayer was previously defined, now we can modify it
-      if (typeof mapLayer !== 'undefined') {
-        if (arcgisToken) {
-          mapLayer.customParameters = { token: arcgisToken };
-        }
-      }
-      // No other initialization needed at this point
-    }
-  </script> -->
-
   <script>
     
     require([
@@ -559,11 +481,9 @@ function configureArcGISWithToken(token) {
 
 // Continue with map initialization after token is received or if token retrieval fails
 function continueMapInitialization() {
-    //console.log('Continuing with map initialization');
-    $('.page-loading').html('<div><h3>Loading map...</h3><p><small>Initializing map layers...<br></small></p><img src="images/loading.gif" alt="loader"></div>');
-    
-    // Set up the map layers - but don't call addFootprints here
-    setLayerVisibility(uri.layers.replace(/[\(\)]/g, '').split(','));
+    console.log('Continuing with map initialization');
+
+
 }
 
       
@@ -1202,7 +1122,26 @@ mapView.watch(["extent", "stationary"], function() {
       */
 
 
-
+      mapView.on("error", function(error) {
+    if (error.name === "identity-manager:not-authorized" || 
+        error.name === "identity-manager:user-aborted") {
+        console.log("Token may have expired, attempting to refresh...");
+        
+        // Refresh token
+        getArcGISToken(firebase.functions())
+            .then(token => {
+                if (token) {
+                    // Update token on all secured layers
+                    map.layers.forEach(layer => {
+                        if (layer.id === "24k") {
+                            layer.customParameters = { token: token };
+                            layer.refresh();
+                        }
+                    });
+                }
+            });
+    }
+});
 
 
 
