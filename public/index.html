@@ -404,30 +404,32 @@
             });
           });
 
-          // --- Create Secured TileLayer ---
-          if (token) {
-            // Create the TileLayer WITHOUT specifying token in customParameters
-            mapLayer = new TileLayer({
-  url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-  id: "24k",
-  opacity: 0.7,
-  title: "1:24,000 Geologic Maps",
-  visible: false,
-  customParameters: {
-    token: token
-  }
-});
-            
-            map.add(mapLayer); // Add to map
-            console.log('24k layer added to map.');
-            
-            mapLayer.when(
-              () => { console.log('24k Layer finished loading!'); },
-              (error) => { console.error('24k Layer failed to load:', error); }
-            );
-          } else {
-            console.warn('Token not available, 24k layer was not added.');
-          }
+// --- Create Secured TileLayer ---
+if (token) {
+  // Create the TileLayer with token explicitly in the URL
+  mapLayer = new TileLayer({
+    url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+    id: "24k",
+    opacity: 0.7,
+    title: "1:24,000 Geologic Maps",
+    visible: false,
+    refreshInterval: 0, // Disable automatic refreshing
+    // Include token directly in URL parameters for all requests
+    urlTemplate: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/tile/{level}/{row}/{col}?token=" + token
+  });
+  
+  map.add(mapLayer); // Add to map
+  console.log('24k layer added to map.');
+  
+  // Add error logging for better diagnostics
+  mapLayer.when(
+    () => { console.log('24k Layer finished loading!'); },
+    (error) => { 
+      console.error('24k Layer failed to load:', error); 
+      console.log('Token used:', token ? 'Token available' : 'No token');
+    }
+  );
+}
 
           // Initialize fullscreen widget
           fullscreen = new Fullscreen({ view: mapView });
