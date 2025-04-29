@@ -284,6 +284,7 @@ function hideLoading() {
         "esri/WebMap",
         "esri/views/MapView",
         "esri/config",
+        "esri/identity/IdentityManager",
         "esri/layers/TileLayer",
         "esri/layers/WFSLayer",
         "esri/layers/FeatureLayer", // Keep if used by search or other widgets
@@ -310,7 +311,7 @@ function hideLoading() {
         "calcite-maps/calcitemaps-arcgis-support-v0.10",
         "dojo/domReady!" // Ensures DOM is ready
       ], function(
-         WebMap, MapView, esriConfig, TileLayer, WFSLayer, FeatureLayer, SimpleMarkerSymbol, watchUtils,
+         WebMap, MapView, esriConfig, IdentityManager, TileLayer, WFSLayer, FeatureLayer, SimpleMarkerSymbol, watchUtils,
          Home, Zoom, Compass, Search, Legend, LayerList, BasemapToggle, Fullscreen, ScaleBar, Attribution,
          Grid, query, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport
       ) {
