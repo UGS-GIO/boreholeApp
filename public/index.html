@@ -362,56 +362,28 @@
 
 // --- Create Secured TileLayer ---
 if (token) {
-    // Create the TileLayer with token directly in the URL as a parameter
-    const tokenParam = `?token=${token}`;
+    // Create the TileLayer with token in customParameters only
     mapLayer = new TileLayer({
-        url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer" + tokenParam,
+        url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
         id: "24k",
         opacity: 0.7,
         title: "1:24,000 Geologic Maps",
         visible: false,
-        // Add fallback mechanism for individual tile requests
-        tileServers: [`https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/tile/{level}/{row}/{col}${tokenParam}`]
+        customParameters: {
+            token: token
+        }
     });
     
-    // Register token with IdentityManager (just this part, remove registerServer)
-    try {
-        IdentityManager.registerToken({
-            server: "https://webmaps.geology.utah.gov/arcgis",
-            token: token
-        });
-        console.log("Token registered with IdentityManager for secure services");
-    } catch (error) {
-        console.error("Error registering token:", error);
-    }
-    
-    // Add the layer to the map
-    map.add(mapLayer);
+    map.add(mapLayer); // Add to map
     console.log('24k layer added to map.');
     
-    // Add error handling for TileLayer loading
+    // Add detailed logging
     mapLayer.when(
         () => { console.log('24k Layer finished loading!'); },
         (error) => { 
             console.error('24k Layer failed to load:', error); 
             console.log('Error details:', error.details);
             console.log('Token used:', token ? 'Token available' : 'No token');
-            
-            // Try fallback approach if loading fails
-            console.log("Attempting fallback approach for secure layer...");
-            const fallbackLayer = new TileLayer({
-                url: `https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer`,
-                id: "24k-fallback",
-                opacity: 0.7,
-                title: "1:24,000 Geologic Maps (Fallback)",
-                visible: false,
-                requestOptions: {
-                    query: {
-                        token: token
-                    }
-                }
-            });
-            map.add(fallbackLayer);
         }
     );
 }
