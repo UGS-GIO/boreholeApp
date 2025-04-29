@@ -161,6 +161,42 @@
     let GlobalID = ""; // Holds BoreID for related data queries
     const projectName = 'https://us-central1-ut-dnr-ugs-geolmapportal-prod.cloudfunctions.net'; // Not used here, but kept if needed elsewhere
 
+    // --- Loading Indicator Functions ---
+    function showLoading(message) {
+      // Create loading div if it doesn't exist yet
+      let loadingDiv = document.querySelector('.page-loading');
+      if (!loadingDiv) {
+        loadingDiv = document.createElement('div');
+        loadingDiv.className = 'page-loading';
+        document.body.appendChild(loadingDiv);
+      }
+      
+      // Update the loading message
+      loadingDiv.innerHTML = `
+        <div>
+          <h3>Loading</h3>
+          <p>${message || 'Please wait...'}</p>
+          <img src="https://geology.utah.gov/apps/_ugsmaptemplate/loading.gif" alt="Loading">
+        </div>
+      `;
+      
+      // Make sure it's visible
+      loadingDiv.style.display = 'flex';
+      loadingDiv.style.opacity = '1';
+    }
+
+    function hideLoading() {
+      const loadingDiv = document.querySelector('.page-loading');
+      if (loadingDiv) {
+        // Use fade out for smoother transition
+        loadingDiv.style.transition = 'opacity 0.5s ease-out';
+        loadingDiv.style.opacity = '0';
+        setTimeout(() => {
+          loadingDiv.style.display = 'none';
+        }, 500);
+      }
+    }
+
     // --- Firebase Initialization and Auth Flow ---
     document.addEventListener('DOMContentLoaded', function() {
       console.log('DOM Content Loaded - Starting Firebase initialization');
@@ -213,95 +249,54 @@
     }
 
     function getArcGISToken(refresh) {
-  return new Promise((resolve, reject) => {
-    try {
-      const functions = firebase.functions();
-      updateLoadingStatus(refresh ? 'Refreshing token...' : 'Requesting secure token...');
-      const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken');
+      return new Promise((resolve, reject) => {
+        try {
+          const functions = firebase.functions(); // Current project's functions
+          updateLoadingStatus(refresh ? 'Refreshing token...' : 'Requesting secure token...');
+          const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken'); // Reference the PROXY function
 
-      proxyGetArcGISTokenFn()
-        .then(function(result) {
-          arcgisToken = result.data.token;
-          console.log('ArcGIS token received via proxy:', arcgisToken ? 'Token received successfully' : 'No token received');
-          window.initialArcGISToken = arcgisToken;
-          
-          // If the IdentityManager is already loaded, register the new token
-          if (typeof require !== 'undefined') {
-            require(["esri/identity/IdentityManager"], function(IdentityManager) {
-              try {
-                IdentityManager.registerToken({
-                  server: "https://webmaps.geology.utah.gov/arcgis",
-                  token: arcgisToken
-                });
-                console.log("New token registered with IdentityManager");
-              } catch (e) {
-                console.error("Error registering refreshed token:", e);
+          proxyGetArcGISTokenFn()
+            .then(function(result) {
+              const token = result.data.token; // Store token
+              console.log('ArcGIS token received via proxy:', token ? 'Token received successfully' : 'No token received');
+              
+              // Store token globally
+              window.initialArcGISToken = token;
+              arcgisToken = token;
+              
+              if (!refresh) {
+                updateLoadingStatus('Initializing map components...');
+                loadArcGISMap(); // Trigger ArcGIS map initialization
               }
-              resolve(arcgisToken);
+              
+              resolve(token);
+            })
+            .catch(function(error) {
+              console.error('Error getting ArcGIS token via proxy:', error.code, error.message, error.details);
+              updateLoadingStatus('Authentication Warning', `Could not get token: ${error.message}. Some features may be limited.`);
+              window.initialArcGISToken = null;
+              arcgisToken = null;
+              
+              if (!refresh) {
+                loadArcGISMap(); // Trigger map initialization even on error
+              }
+              
+              reject(error);
             });
-          } else {
-            resolve(arcgisToken);
-          }
+        } catch (error) {
+          console.error('Error setting up token function call:', error);
+          updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
+          window.initialArcGISToken = null;
+          arcgisToken = null;
           
           if (!refresh) {
-            updateLoadingStatus('Initializing map components...');
-            loadArcGISMap();
+            loadArcGISMap(); // Trigger map initialization on setup error
           }
-        })
-        .catch(function(error) {
-          console.error('Error getting ArcGIS token via proxy:', error.code, error.message, error.details);
-          updateLoadingStatus('Authentication Warning', `Could not get token: ${error.message}. Some features may be limited.`);
-          window.initialArcGISToken = null;
-          if (!refresh) {
-            loadArcGISMap();
-          }
+          
           reject(error);
-        });
-    } catch (error) {
-      console.error('Error setting up token function call:', error);
-      updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
-      window.initialArcGISToken = null;
-      if (!refresh) {
-        loadArcGISMap();
-      }
-      reject(error);
+        }
+      });
     }
-  });
-}
-    function showLoading(message) {
-  // Create loading div if it doesn't exist yet
-  let loadingDiv = document.querySelector('.page-loading');
-  if (!loadingDiv) {
-    loadingDiv = document.createElement('div');
-    loadingDiv.className = 'page-loading';
-    document.body.appendChild(loadingDiv);
-  }
-  
-  // Update the loading message
-  loadingDiv.innerHTML = `
-    <div>
-      <h3>Loading</h3>
-      <p>${message || 'Please wait...'}</p>
-      <img src="https://geology.utah.gov/apps/_ugsmaptemplate/loading.gif" alt="Loading">
-    </div>
-  `;
-  
-  // Make sure it's visible
-  loadingDiv.style.display = 'flex';
-  loadingDiv.style.opacity = '1';
-}
-
-function hideLoading() {
-  const loadingDiv = document.querySelector('.page-loading');
-  if (loadingDiv) {
-    // Use fade out for smoother transition
-    loadingDiv.style.transition = 'opacity 0.5s ease-out';
-    loadingDiv.style.opacity = '0';
-    setTimeout(() => {
-      loadingDiv.style.display = 'none';
-    }, 500);
-  }
-}
 
     // --- ArcGIS Map Initialization ---
     // This function is called ONLY after the token fetch attempt is complete
@@ -344,30 +339,11 @@ function hideLoading() {
          Home, Zoom, Compass, Search, Legend, LayerList, BasemapToggle, Fullscreen, ScaleBar, Attribution,
          Grid, query, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport
       ) {
+          console.log('ArcGIS Modules Loaded. Initializing Map...');
+          const token = window.initialArcGISToken; // Get token potentially set by async call
+          console.log('ArcGIS initialization with token:', token ? 'Available' : 'Not available');
 
-
-        console.log('ArcGIS Modules Loaded. Initializing Map...');
-const token = window.initialArcGISToken;
-console.log('ArcGIS initialization with token:', token ? 'Available' : 'Not available');
-
-// IMPORTANT: Use both approaches together
-if (token) {
-  // 1. Register with IdentityManager
-  try {
-    IdentityManager.registerToken({
-      server: "https://webmaps.geology.utah.gov/arcgis",
-      token: token
-    });
-    console.log("Token registered with IdentityManager for secure services");
-  } catch (error) {
-    console.error("Error registering token:", error);
-  }
-  
-  // 2. Also configure the interceptor
-  configureArcGISWithToken(esriConfig, token);
-}
-
-          // --- Create Map and View ---
+          // --- Create Map and View First ---
           map = new WebMap({ basemap: "topo" });
           mapView = new MapView({
             container: "mapViewDiv",
@@ -383,67 +359,76 @@ if (token) {
             }
           });
 
-          fullscreen = new Fullscreen({ view: mapView }); // Initialize fullscreen here
+          // --- Register Token with IdentityManager ---
+          if (token) {
+            try {
+              // Register the token for the server domain, not the specific service
+              IdentityManager.registerToken({
+                server: "https://webmaps.geology.utah.gov/arcgis",
+                token: token
+              });
+              console.log("Token registered with IdentityManager for secure services");
+            } catch (error) {
+              console.error("Error registering token:", error);
+            }
+          }
 
-// MODIFIED LAYER CREATION CODE
-if (token) {
-  // Try creating the layer with a very simple configuration first
-  mapLayer = new TileLayer({
-    url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-    id: "24k",
-    title: "1:24,000 Geologic Maps",
-    visible: false,
-    opacity: 0.7
-  });
-  
-  map.add(mapLayer);
-  console.log('24k layer added to map.');
-  
-  mapLayer.when(
-    () => { console.log('24k Layer finished loading!'); },
-    (error) => { 
-      console.error('24k Layer failed to load:', error);
-      
-      // If the simple approach fails, try a different method
-      console.log("Trying alternative approach with URL token parameter");
-      
-      // Remove the failed layer
-      map.remove(mapLayer);
-      
-      // Try approach with token in URL - similar to the working example
-      mapLayer = new TileLayer({
-        url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer?token=" + token,
-        id: "24k",
-        title: "1:24,000 Geologic Maps",
-        visible: false,
-        opacity: 0.7
-      });
-      
-      map.add(mapLayer);
-    }
-  );
-} else {
-  console.warn('Token not available, 24k layer was not added.');
-}
+          // --- Handle IdentityManager Dialog Creation (Prevent It From Showing) ---
+          IdentityManager.on("dialog-create", function() {
+            console.log("Identity Manager dialog triggered - suppressing and refreshing token");
+            
+            // Hide the dialog
+            const dialog = document.querySelector(".esri-identity-form");
+            if (dialog) {
+              dialog.style.display = "none";
+            }
+            
+            // Try to get a new token and refresh the layer
+            getArcGISToken(true).then(function(newToken) {
+              console.log("New token received, refreshing layers");
+              if (mapLayer) {
+                try {
+                  // Try to register the new token with IdentityManager
+                  IdentityManager.registerToken({
+                    server: "https://webmaps.geology.utah.gov/arcgis",
+                    token: newToken
+                  });
+                  // Refresh the layer
+                  mapLayer.refresh();
+                } catch (e) {
+                  console.error("Error refreshing after token update:", e);
+                }
+              }
+            }).catch(function(error) {
+              console.error("Failed to refresh token:", error);
+            });
+          });
 
-    // Prevent the Identity Manager dialog from showing
-    IdentityManager.on("dialog-create", function() {
-      console.log("Identity Manager dialog triggered - handling programmatically");
-      // Hide the dialog
-      const dialog = document.querySelector(".esri-identity-form");
-      if (dialog) {
-        dialog.style.display = "none";
-      }
-      
-      // Try to refresh the token
-      getArcGISToken().then(function() {
-        if (mapLayer) {
-          mapLayer.refresh();
-        }
-      });
-    });
+          // --- Create Secured TileLayer ---
+          if (token) {
+            // Create the TileLayer WITHOUT specifying token in customParameters
+            mapLayer = new TileLayer({
+              url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+              id: "24k",
+              opacity: 0.7,
+              title: "1:24,000 Geologic Maps",
+              visible: false
+            });
+            
+            map.add(mapLayer); // Add to map
+            console.log('24k layer added to map.');
+            
+            mapLayer.when(
+              () => { console.log('24k Layer finished loading!'); },
+              (error) => { console.error('24k Layer failed to load:', error); }
+            );
+          } else {
+            console.warn('Token not available, 24k layer was not added.');
+          }
 
-    
+          // Initialize fullscreen widget
+          fullscreen = new Fullscreen({ view: mapView });
+
           // --- Create WFS Layer (Boreholes - Public) ---
           const wfsRenderer = {
             type: "unique-value",
@@ -521,8 +506,7 @@ if (token) {
               outFields: ["*"],
               popupTemplate: layer.popupTemplate, // Use the same template
               autoNavigate: true, // Zoom to result
-              zoomScale: 5000, // Zoom closer
-              resultSymbol: { /* ... symbol definition ... */ } // Copy symbol definition here
+              zoomScale: 5000 // Zoom closer
             }]
           });
           CalciteMapArcGISSupport.setSearchExpandEvents(searchWidget);
@@ -535,11 +519,6 @@ if (token) {
                 layer: layer, // Legend for WFS layer
                 title: "Exploration Method"
               }
-              // Add mapLayer here if you want it in the legend AND it was added
-              // ,{
-              //   layer: mapLayer,
-              //   title: "1:24,000 Geologic Maps"
-              // }
             ]
           });
 
@@ -552,36 +531,34 @@ if (token) {
 
           // --- Token Refresh Logic ---
           mapView.on("error", function(error) {
-             // Use the CORRECTED token refresh logic from the previous answer
-             if ((error.name === "identity-manager:not-authorized" ||
-                  error.name === "identity-manager:user-aborted") &&
+             console.error("MapView error:", error);
+             
+             // Check if it's an authentication error
+             if ((error.name === "identity-manager:not-authorized" || 
+                  error.name === "identity-manager:user-aborted" ||
+                  error.name === "request:server") &&
                   firebase && firebase.auth().currentUser) {
-
-                 console.log("Token may have expired or be invalid, attempting to refresh via proxy...");
-                 const functions = firebase.functions(); // Current project
-                 const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken'); // PROXY
-
-                 proxyGetArcGISTokenFn()
-                   .then(function(result) {
-                     const newToken = result.data.token;
-                     console.log('New token received via proxy on refresh');
-                     window.initialArcGISToken = newToken;
-                     arcgisToken = newToken; // Update global token if still needed
-
-                     if (mapLayer) { // Check if mapLayer exists/was added
-                       mapLayer.customParameters = { token: newToken };
-                       try {
-                         mapLayer.refresh();
-                         console.log('Layer refreshed with new token');
-                       } catch (e) { console.error('Error refreshing layer:', e); }
-                     }
-                     // configureArcGISWithToken(esriConfig, newToken); // Update interceptor too if using it
-                   })
-                   .catch(function(error) {
-                      console.error('Error refreshing token via proxy:', error.code, error.message);
-                   });
-             } else {
-                 console.error("MapView error:", error); // Log other map errors
+                  
+                console.log("Authentication error detected, refreshing token...");
+                getArcGISToken(true).then(function(newToken) {
+                  // Try to register the new token
+                  try {
+                    IdentityManager.registerToken({
+                      server: "https://webmaps.geology.utah.gov/arcgis",
+                      token: newToken
+                    });
+                    console.log("New token registered with IdentityManager");
+                    
+                    // Refresh the layer if it exists
+                    if (mapLayer) {
+                      mapLayer.refresh();
+                    }
+                  } catch (e) {
+                    console.error("Error registering refreshed token:", e);
+                  }
+                }).catch(function(error) {
+                  console.error("Failed to refresh token:", error);
+                });
              }
           });
 
@@ -637,29 +614,6 @@ if (token) {
         setTimeout(() => { loadingDiv.remove(); }, 500); // Remove after fade
       }
     }
-
-    function configureArcGISWithToken(esriConfig, token) {
-  console.log("Configuring esriConfig interceptor with token");
-  if (!token) {
-    console.log('No token available for configuration');
-    return;
-  }
-    
-  // Configure request interceptor to add token to ALL requests to the specific domain
-  esriConfig.request.interceptors.push({
-    urls: [
-      "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-      "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0",
-      "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/30x60_Quads/MapServer"
-    ],
-    before: function(params) {
-      params.requestOptions = params.requestOptions || {};
-      params.requestOptions.query = params.requestOptions.query || {};
-      params.requestOptions.query.token = token;
-      console.log("Token injected into request via interceptor:", params.url);
-    }
-  });
-}
 
     // Function to show/hide Calcite panels (Ensure query is available or use jQuery)
     function showHideCalcitePanels(showPanel, showCollapse) {
@@ -727,7 +681,6 @@ if (token) {
              // Project Details
              if (results[0].status === 'fulfilled' && results[0].value.length > 0) {
                  const att = results[0].value[0]; let fields = "";
-                 /* ... populate fields as before ... */
                  if (att.projectid) fields += "<span class='field-heading'>Project ID: </span><span class='field-data'>" + check(att.projectid) + "</span><br>";
                  if (att.udot_pin) fields += "<span class='field-heading'>UDOT Pin: </span><span class='field-data'>" + check(att.udot_pin) + "</span><br>";
                  if (att.exploration_type) fields += "<span class='field-heading'>Type: </span><span class='field-data'>" + check(att.exploration_type) + "</span><br>";
@@ -745,23 +698,33 @@ if (token) {
              // Unit Data
              if (results[1].status === 'fulfilled' && results[1].value.length > 0) {
                  const unitResults = results[1].value; let fields = ""; let fields2 = "";
-                 /* ... populate fields & fields2 as before ... */
-                  fields += "<span class='field-heading'>Total Units: </span> <span class='field-data'>" + unitResults.length + " </span><br>";
-                  const uscsOrgs = [...new Set(unitResults.map(r => r.uscs).filter(Boolean))];
-                  fields += "<span class='field-heading'>USCS: </span> <span class='field-data'>" + (uscsOrgs.length > 0 ? uscsOrgs.join(", ") : "N/A") + " </span><br>";
-                  const maxDepthArray = unitResults.map(r => Number(r.lowerdepth)).filter(n => !isNaN(n));
-                  const maxdp = maxDepthArray.length > 0 ? Math.max(...maxDepthArray) : "N/A";
-                  fields += "<span class='field-heading'>Max Depth: </span> <span class='field-data'>" + (maxdp !== "N/A" ? maxdp + " ft" : "N/A") + "</span><br>";
-                  $('#unitData').empty().append(fields);
+                 fields += "<span class='field-heading'>Total Units: </span> <span class='field-data'>" + unitResults.length + " </span><br>";
+                 const uscsOrgs = [...new Set(unitResults.map(r => r.uscs).filter(Boolean))];
+                 fields += "<span class='field-heading'>USCS: </span> <span class='field-data'>" + (uscsOrgs.length > 0 ? uscsOrgs.join(", ") : "N/A") + " </span><br>";
+                 const maxDepthArray = unitResults.map(r => Number(r.lowerdepth)).filter(n => !isNaN(n));
+                 const maxdp = maxDepthArray.length > 0 ? Math.max(...maxDepthArray) : "N/A";
+                 fields += "<span class='field-heading'>Max Depth: </span> <span class='field-data'>" + (maxdp !== "N/A" ? maxdp + " ft" : "N/A") + "</span><br>";
+                 $('#unitData').empty().append(fields);
 
-                  unitResults.forEach(att => { /* ... populate fields2 ... */ });
-                  $('#unitDataExpand').empty().append(fields2 || "<i>No detailed unit data.</i>");
+                 unitResults.forEach(att => {
+                   let unitDetail = "<div class='ibox'>";
+                   if(att.upperdepth !== null && att.lowerdepth !== null) unitDetail += "<span class='field-heading-sm'>Depth Range: </span><span class='field-data-sm'>" + check(att.upperdepth) + " - " + check(att.lowerdepth) + " ft</span><br>";
+                   if(att.thickness !== null) unitDetail += "<span class='field-heading-sm'>Thickness: </span><span class='field-data-sm'>" + check(att.thickness) + " ft</span><br>";
+                   if(att.uscs) unitDetail += "<span class='field-heading-sm'>USCS: </span><span class='field-data-sm'>" + check(att.uscs) + "</span><br>";
+                   if(att.color) unitDetail += "<span class='field-heading-sm'>Color: </span><span class='field-data-sm'>" + check(att.color) + "</span><br>";
+                   if(att.moisture_content) unitDetail += "<span class='field-heading-sm'>Moisture: </span><span class='field-data-sm'>" + check(att.moisture_content) + "</span><br>";
+                   if(att.consistency) unitDetail += "<span class='field-heading-sm'>Consistency: </span><span class='field-data-sm'>" + check(att.consistency) + "</span><br>";
+                   if(att.layer_description) unitDetail += "<span class='field-heading-sm'>Description: </span><span class='field-data-sm'>" + check(att.layer_description) + "</span><br>";
+                   unitDetail += "</div>";
+                   fields2 += unitDetail;
+                 });
+                 
+                 $('#unitDataExpand').empty().append(fields2 || "<i>No detailed unit data.</i>");
              } else { $('#unitData, #unitDataExpand').empty().html("<i>Error or no unit data found.</i>"); console.error("Unit Data Fetch Error:", results[1].reason); }
 
              // Sampling Data
              if (results[2].status === 'fulfilled' && results[2].value.length > 0) {
                  const sampleResults = results[2].value; let fields = ""; let fields3 = "";
-                 /* ... populate fields & fields3 as before ... */
                  fields += "<span class='field-heading'>Total Samples: </span> <span class='field-data'>" + sampleResults.length + " </span><br>";
                  const sampleTypes = [...new Set(sampleResults.map(r => r.samplemethod).filter(Boolean))];
                  fields += "<span class='field-heading'>Types: </span> <span class='field-data'>" + (sampleTypes.length > 0 ? sampleTypes.join(", ") : "N/A") + " </span><br>";
@@ -777,7 +740,25 @@ if (token) {
                  fields += "<span class='field-heading'>Notes?: </span> <span class='field-data'>" + (checkExists(sampleResults, ['notes']) ? "Yes" : "No") + "</span>";
                  $('#samplingData').empty().append(fields);
 
-                 sampleResults.forEach(att => { /* ... populate fields3 ... */ });
+                 sampleResults.forEach(att => {
+                   let sampleDetail = "<div class='ibox'>";
+                   if(att.sample_id) sampleDetail += "<span class='field-heading-sm'>Sample ID: </span><span class='field-data-sm'>" + check(att.sample_id) + "</span><br>";
+                   if(att.depth !== null) sampleDetail += "<span class='field-heading-sm'>Depth: </span><span class='field-data-sm'>" + check(att.depth) + " ft</span><br>";
+                   if(att.samplemethod) sampleDetail += "<span class='field-heading-sm'>Method: </span><span class='field-data-sm'>" + check(att.samplemethod) + "</span><br>";
+                   if(att.nvalue) sampleDetail += "<span class='field-heading-sm'>N-Value: </span><span class='field-data-sm'>" + check(att.nvalue) + "</span><br>";
+                   if(att.gravel_percent !== null) sampleDetail += "<span class='field-heading-sm'>Gravel %: </span><span class='field-data-sm'>" + check(att.gravel_percent) + "</span><br>";
+                   if(att.sand_percent !== null) sampleDetail += "<span class='field-heading-sm'>Sand %: </span><span class='field-data-sm'>" + check(att.sand_percent) + "</span><br>";
+                   if(att.fines_percent !== null) sampleDetail += "<span class='field-heading-sm'>Fines %: </span><span class='field-data-sm'>" + check(att.fines_percent) + "</span><br>";
+                   if(att.labmoisture_percent !== null) sampleDetail += "<span class='field-heading-sm'>Lab Moisture %: </span><span class='field-data-sm'>" + check(att.labmoisture_percent) + "</span><br>";
+                   if(att.labdrydensity_pcf !== null) sampleDetail += "<span class='field-heading-sm'>Lab Dry Density: </span><span class='field-data-sm'>" + check(att.labdrydensity_pcf) + " pcf</span><br>";
+                   if(att.ll !== null) sampleDetail += "<span class='field-heading-sm'>Liquid Limit: </span><span class='field-data-sm'>" + check(att.ll) + "</span><br>";
+                   if(att.pl !== null) sampleDetail += "<span class='field-heading-sm'>Plastic Limit: </span><span class='field-data-sm'>" + check(att.pl) + "</span><br>";
+                   if(att.pi !== null) sampleDetail += "<span class='field-heading-sm'>PI: </span><span class='field-data-sm'>" + check(att.pi) + "</span><br>";
+                   if(att.notes) sampleDetail += "<span class='field-heading-sm'>Notes: </span><span class='field-data-sm'>" + check(att.notes) + "</span><br>";
+                   sampleDetail += "</div>";
+                   fields3 += sampleDetail;
+                 });
+                 
                  $('#samplingDataExpand').empty().append(fields3 || "<i>No detailed sample data.</i>");
              } else { $('#samplingData, #samplingDataExpand').empty().html("<i>Error or no sample data found.</i>"); console.error("Sampling Data Fetch Error:", results[2].reason); }
 
