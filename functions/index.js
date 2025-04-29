@@ -15,7 +15,8 @@ if (!admin.apps.length) {
 
 // Proxy function to securely call the token generation function in the other project
 exports.proxyGetArcGISToken = onCall({
-    region: "us-central1", // Match the region of your app/other functions if needed
+    region: "us-central1",
+ // Match the region of your app/other functions if needed
     // Add memory/timeout options if necessary
     // memory: "256MiB",
     // timeoutSeconds: 60,
@@ -29,9 +30,9 @@ exports.proxyGetArcGISToken = onCall({
     // logger.info(`Proxy called by UID: ${request.auth?.uid || 'anonymous'}`);
 
     // *** REPLACE WITH THE ACTUAL URL of getArcGISTokenHttp in geolmapportal-prod ***
-    const targetFunctionUrl = 'YOUR_GEOLMAPPORTAL_GETARCGISTOKENHTTP_FUNCTION_URL';
+    const targetFunctionUrl = 'https://us-central1-ut-dnr-ugs-geolmapportal-prod.cloudfunctions.net/getArcGISTokenHttp';
 
-    if (!targetFunctionUrl || targetFunctionUrl === 'YOUR_GEOLMAPPORTAL_GETARCGISTOKENHTTP_FUNCTION_URL') {
+    if (!targetFunctionUrl) { // Only check if it's missing/empty
         logger.error("Target function URL is not configured.");
         throw new HttpsError('internal', 'Proxy configuration error.');
     }
