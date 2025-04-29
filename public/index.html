@@ -212,33 +212,62 @@
       });
     }
 
-    function getArcGISToken() {
-      try {
-        const functions = firebase.functions(); // Current project's functions
-        updateLoadingStatus('Requesting secure token...');
-        const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken'); // Reference the PROXY function
+    function getArcGISToken(refresh) {
+  return new Promise((resolve, reject) => {
+    try {
+      const functions = firebase.functions();
+      updateLoadingStatus(refresh ? 'Refreshing token...' : 'Requesting secure token...');
+      const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken');
 
-        proxyGetArcGISTokenFn()
-          .then(function(result) {
-            arcgisToken = result.data.token; // Store token globally
-            console.log('ArcGIS token received via proxy:', arcgisToken ? 'Token received successfully' : 'No token received');
-            window.initialArcGISToken = arcgisToken; // Store for ArcGIS init
+      proxyGetArcGISTokenFn()
+        .then(function(result) {
+          arcgisToken = result.data.token;
+          console.log('ArcGIS token received via proxy:', arcgisToken ? 'Token received successfully' : 'No token received');
+          window.initialArcGISToken = arcgisToken;
+          
+          // If the IdentityManager is already loaded, register the new token
+          if (typeof require !== 'undefined') {
+            require(["esri/identity/IdentityManager"], function(IdentityManager) {
+              try {
+                IdentityManager.registerToken({
+                  server: "https://webmaps.geology.utah.gov/arcgis",
+                  token: arcgisToken
+                });
+                console.log("New token registered with IdentityManager");
+              } catch (e) {
+                console.error("Error registering refreshed token:", e);
+              }
+              resolve(arcgisToken);
+            });
+          } else {
+            resolve(arcgisToken);
+          }
+          
+          if (!refresh) {
             updateLoadingStatus('Initializing map components...');
-            loadArcGISMap(); // Trigger ArcGIS map initialization
-          })
-          .catch(function(error) {
-            console.error('Error getting ArcGIS token via proxy:', error.code, error.message, error.details);
-            updateLoadingStatus('Authentication Warning', `Could not get token: ${error.message}. Some features may be limited.`);
-            window.initialArcGISToken = null;
-            loadArcGISMap(); // Trigger ArcGIS map initialization even on error
-          });
-      } catch (error) {
-        console.error('Error setting up token function call:', error);
-        updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
-        window.initialArcGISToken = null;
-        loadArcGISMap(); // Trigger ArcGIS map initialization on setup error
+            loadArcGISMap();
+          }
+        })
+        .catch(function(error) {
+          console.error('Error getting ArcGIS token via proxy:', error.code, error.message, error.details);
+          updateLoadingStatus('Authentication Warning', `Could not get token: ${error.message}. Some features may be limited.`);
+          window.initialArcGISToken = null;
+          if (!refresh) {
+            loadArcGISMap();
+          }
+          reject(error);
+        });
+    } catch (error) {
+      console.error('Error setting up token function call:', error);
+      updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
+      window.initialArcGISToken = null;
+      if (!refresh) {
+        loadArcGISMap();
       }
+      reject(error);
     }
+  });
+}
     function showLoading(message) {
   // Create loading div if it doesn't exist yet
   let loadingDiv = document.querySelector('.page-loading');
@@ -321,25 +350,18 @@ function hideLoading() {
   const token = window.initialArcGISToken;
   console.log('ArcGIS initialization with token:', token ? 'Available' : 'Not available');
 
-  // Configure the token with esriConfig
   if (token) {
-    console.log("Configuring esriConfig interceptor with token");
-    esriConfig.request.interceptors.push({
-      urls: "https://webmaps.geology.utah.gov/arcgis/rest/services",
-      before: function(params) {
-        // Add token to URL params
-        params.query = params.query || {};
-        params.query.token = token;
-        console.log("Token injected into request:", params.url);
+      try {
+        // Register the token for the server
+        IdentityManager.registerToken({
+          server: "https://webmaps.geology.utah.gov/arcgis",
+          token: token
+        });
+        console.log("Token registered with IdentityManager for secure services");
+      } catch (error) {
+        console.error("Error registering token:", error);
       }
-    });
-    
-    // Register token with Identity Manager
-    IdentityManager.registerToken({
-      server: "https://webmaps.geology.utah.gov/arcgis",
-      token: token
-    });
-  }
+    }
 
   // Handle Identity Manager dialog (prevent it from showing)
   IdentityManager.on("dialog-create", function() {
@@ -393,49 +415,62 @@ function hideLoading() {
 
           fullscreen = new Fullscreen({ view: mapView }); // Initialize fullscreen here
 
-          // --- Create Secured Tile Layer (1:24k Maps) ---
-          mapLayer = new TileLayer({
-  url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-  id: "24k",
-  opacity: 0.7,
-  title: "1:24,000 Geologic Maps",
-  visible: false,
-  legendEnabled: false,
-  // Use a simpler approach without customParameters
-});
-
-// Then handle the token registration directly with IdentityManager
-if (token) {
-  try {
-    // Register the token for the specific server
-    IdentityManager.registerToken({
-      server: "https://webmaps.geology.utah.gov/arcgis", // Server URL without the specific service
-      token: token
-    });
-    console.log("Token registered with IdentityManager for secure services");
-    
-    // Add the layer after registering token
-    map.add(mapLayer);
-    console.log('24k layer added to map.');
-  } catch (error) {
-    console.error("Error registering token:", error);
-    // Don't add the secure layer if token registration fails
-  }
-} else {
-  console.warn('Token not available, 24k layer was not added.');
-}
-
-mapView.on("error", function(error) {
-  console.log("MapView error:", error);
-  
-  if ((error.name === "identity-manager:not-authorized" || 
-       error.name === "request:server") &&
-      firebase && firebase.auth().currentUser) {
+          if (token) {
+      mapLayer = new TileLayer({
+        url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+        id: "24k",
+        opacity: 0.7,
+        title: "1:24,000 Geologic Maps",
+        visible: false,
+        legendEnabled: false
+        // NO customParameters here - the IdentityManager will handle it
+      });
       
-    console.log("Authentication error, attempting to refresh token...");
-    getArcGISToken(); // Fetch a new token
-  }
-});
+      map.add(mapLayer);
+      console.log('24k layer added to map.');
+      
+      mapLayer.when(
+        () => { console.log('24k Layer finished loading!'); },
+        (error) => { console.error('24k Layer failed to load:', error); }
+      );
+    } else {
+      console.warn('Token not available, 24k layer was not added.');
+    }
+
+ // Handle token refresh for authentication errors
+ mapView.on("error", function(error) {
+      console.log("MapView error:", error);
+      
+      if ((error.name === "identity-manager:not-authorized" || 
+           error.name === "request:server") &&
+          firebase && firebase.auth().currentUser) {
+          
+        console.log("Authentication error, attempting to refresh token...");
+        getArcGISToken().then(function() {
+          // After getting a new token, refresh the layer
+          if (mapLayer) {
+            mapLayer.refresh();
+          }
+        });
+      }
+    });
+
+    // Prevent the Identity Manager dialog from showing
+    IdentityManager.on("dialog-create", function() {
+      console.log("Identity Manager dialog triggered - handling programmatically");
+      // Hide the dialog
+      const dialog = document.querySelector(".esri-identity-form");
+      if (dialog) {
+        dialog.style.display = "none";
+      }
+      
+      // Try to refresh the token
+      getArcGISToken().then(function() {
+        if (mapLayer) {
+          mapLayer.refresh();
+        }
+      });
+    });
 
     
           // --- Create WFS Layer (Boreholes - Public) ---
