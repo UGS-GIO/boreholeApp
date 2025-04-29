@@ -320,9 +320,9 @@ function hideLoading() {
           console.log('ArcGIS initialization with token:', token ? 'Available' : 'Not available');
 
           // --- Optional: Configure esriConfig interceptor (Redundant if using customParameters consistently) ---
-          // if (token) {
-          //   configureArcGISWithToken(esriConfig, token);
-          // }
+          if (token) {
+            configureArcGISWithToken(esriConfig, token);
+          }
 
           // --- Create Map and View ---
           map = new WebMap({ basemap: "topo" });
@@ -563,11 +563,28 @@ function hideLoading() {
 
     // Optional: Interceptor configuration (can likely be removed)
     function configureArcGISWithToken(esriConfig, token) {
-      // ... (implementation as provided before) ...
-      console.warn("Using esriConfig interceptor - consider relying solely on customParameters.");
-      if (!token) return;
-       esriConfig.request.interceptors.push({ /* ... */ });
+  console.log("Configuring esriConfig interceptor with token");
+  if (!token) return;
+  
+  // Add request interceptor to inject token into all requests to geology.utah.gov
+  esriConfig.request.interceptors.push({
+    urls: "https://webmaps.geology.utah.gov/arcgis/rest/services",
+    before: function(params) {
+      // Check if token is not already in the URL or params
+      if (!params.url.includes("token=") && (!params.query || !params.query.token)) {
+        // Add token to URL params
+        params.query = params.query || {};
+        params.query.token = token;
+        console.log("Token injected into request:", params.url);
+      }
+    },
+    error: function(error) {
+      console.warn("Request error with token:", error);
+      // Return the error to let it propagate
+      return error;
     }
+  });
+}
 
     // Function to show/hide Calcite panels (Ensure query is available or use jQuery)
     function showHideCalcitePanels(showPanel, showCollapse) {
