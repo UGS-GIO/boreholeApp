@@ -395,29 +395,49 @@ function hideLoading() {
 
           // --- Create Secured Tile Layer (1:24k Maps) ---
           mapLayer = new TileLayer({
-            url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-            id: "24k",
-            // index: 0, // Let map manage layer order unless specific order needed
-            opacity: 0.7,
-            title: "1:24,000 Geologic Maps",
-            visible: false, // Start hidden, user enables via LayerList
-            legendEnabled: false, // No legend needed for this layer?
-            customParameters: token ? { token: token } : {} // Apply token if available
-          });
-          console.log('24k Map layer created with customParameters:', mapLayer.customParameters);
+  url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+  id: "24k",
+  opacity: 0.7,
+  title: "1:24,000 Geologic Maps",
+  visible: false,
+  legendEnabled: false,
+  // Use a simpler approach without customParameters
+});
 
-          // Add the layer ONLY if token was successfully retrieved
-          if (token) {
-            map.add(mapLayer); // Add layer to map's layer collection
-            console.log('24k layer added to map.');
-            mapLayer.when(
-                () => { console.log('24k Layer finished loading!'); },
-                (error) => { console.error('24k Layer failed to load:', error); }
-            );
-          } else {
-            console.warn('Token not available, 24k layer was not added.');
-          }
+// Then handle the token registration directly with IdentityManager
+if (token) {
+  try {
+    // Register the token for the specific server
+    IdentityManager.registerToken({
+      server: "https://webmaps.geology.utah.gov/arcgis", // Server URL without the specific service
+      token: token
+    });
+    console.log("Token registered with IdentityManager for secure services");
+    
+    // Add the layer after registering token
+    map.add(mapLayer);
+    console.log('24k layer added to map.');
+  } catch (error) {
+    console.error("Error registering token:", error);
+    // Don't add the secure layer if token registration fails
+  }
+} else {
+  console.warn('Token not available, 24k layer was not added.');
+}
 
+mapView.on("error", function(error) {
+  console.log("MapView error:", error);
+  
+  if ((error.name === "identity-manager:not-authorized" || 
+       error.name === "request:server") &&
+      firebase && firebase.auth().currentUser) {
+      
+    console.log("Authentication error, attempting to refresh token...");
+    getArcGISToken(); // Fetch a new token
+  }
+});
+
+    
           // --- Create WFS Layer (Boreholes - Public) ---
           const wfsRenderer = {
             type: "unique-value",
