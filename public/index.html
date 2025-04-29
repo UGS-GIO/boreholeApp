@@ -324,6 +324,38 @@ function hideLoading() {
             configureArcGISWithToken(esriConfig, token);
           }
 
+          esri.id.on("dialog-create", function() {
+  // Prevent the dialog from showing
+  esri.id.dialog.content.parentNode.style.display = "none";
+  
+  // If we have a token, try to register it
+  const token = window.initialArcGISToken;
+  if (token) {
+    console.log("Handling identity manager dialog with token");
+    
+    // Register the server with the token
+    try {
+      esri.id.registerToken({
+        server: "https://webmaps.geology.utah.gov/arcgis",
+        token: token
+      });
+      
+      // Refresh after registering token
+      if (mapLayer) {
+        mapLayer.refresh();
+      }
+    } catch (e) {
+      console.error("Error registering token with identity manager:", e);
+      // Refresh token via Firebase in case it expired
+      getArcGISToken();
+    }
+  } else {
+    console.warn("No token available when identity manager requested login");
+    // Try to get a new token
+    getArcGISToken();
+  }
+});
+
           // --- Create Map and View ---
           map = new WebMap({ basemap: "topo" });
           mapView = new MapView({
