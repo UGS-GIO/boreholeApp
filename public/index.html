@@ -239,6 +239,40 @@
         loadArcGISMap(); // Trigger ArcGIS map initialization on setup error
       }
     }
+    function showLoading(message) {
+  // Create loading div if it doesn't exist yet
+  let loadingDiv = document.querySelector('.page-loading');
+  if (!loadingDiv) {
+    loadingDiv = document.createElement('div');
+    loadingDiv.className = 'page-loading';
+    document.body.appendChild(loadingDiv);
+  }
+  
+  // Update the loading message
+  loadingDiv.innerHTML = `
+    <div>
+      <h3>Loading</h3>
+      <p>${message || 'Please wait...'}</p>
+      <img src="https://geology.utah.gov/apps/_ugsmaptemplate/loading.gif" alt="Loading">
+    </div>
+  `;
+  
+  // Make sure it's visible
+  loadingDiv.style.display = 'flex';
+  loadingDiv.style.opacity = '1';
+}
+
+function hideLoading() {
+  const loadingDiv = document.querySelector('.page-loading');
+  if (loadingDiv) {
+    // Use fade out for smoother transition
+    loadingDiv.style.transition = 'opacity 0.5s ease-out';
+    loadingDiv.style.opacity = '0';
+    setTimeout(() => {
+      loadingDiv.style.display = 'none';
+    }, 500);
+  }
+}
 
     // --- ArcGIS Map Initialization ---
     // This function is called ONLY after the token fetch attempt is complete
