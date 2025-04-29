@@ -359,26 +359,6 @@
             }
           });
 
-// --- Register Token with IdentityManager ---
-if (token) {
-    try {
-        // Register the token for the server domain
-        IdentityManager.registerToken({
-            server: "https://webmaps.geology.utah.gov/arcgis",
-            token: token
-        });
-        
-        // Also set up the server info properly
-        IdentityManager.registerServer({
-            server: "https://webmaps.geology.utah.gov/arcgis",
-            tokenServiceUrl: "https://webmaps.geology.utah.gov/arcgis/tokens/"
-        });
-        
-        console.log("Token registered with IdentityManager for secure services");
-    } catch (error) {
-        console.error("Error registering token:", error);
-    }
-}
 
 // --- Create Secured TileLayer ---
 if (token) {
