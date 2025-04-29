@@ -315,46 +315,64 @@ function hideLoading() {
          Grid, query, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport
       ) {
 
+
           console.log('ArcGIS Modules Loaded. Initializing Map...');
-          const token = window.initialArcGISToken; // Get token potentially set by async call
-          console.log('ArcGIS initialization with token:', token ? 'Available' : 'Not available');
-
-          // --- Optional: Configure esriConfig interceptor (Redundant if using customParameters consistently) ---
-          if (token) {
-            configureArcGISWithToken(esriConfig, token);
-          }
-
-          esri.id.on("dialog-create", function() {
-  // Prevent the dialog from showing
-  esri.id.dialog.content.parentNode.style.display = "none";
-  
-  // If we have a token, try to register it
   const token = window.initialArcGISToken;
+  console.log('ArcGIS initialization with token:', token ? 'Available' : 'Not available');
+
+  // Configure the token with esriConfig
   if (token) {
-    console.log("Handling identity manager dialog with token");
-    
-    // Register the server with the token
-    try {
-      esri.id.registerToken({
-        server: "https://webmaps.geology.utah.gov/arcgis",
-        token: token
-      });
-      
-      // Refresh after registering token
-      if (mapLayer) {
-        mapLayer.refresh();
+    console.log("Configuring esriConfig interceptor with token");
+    esriConfig.request.interceptors.push({
+      urls: "https://webmaps.geology.utah.gov/arcgis/rest/services",
+      before: function(params) {
+        // Add token to URL params
+        params.query = params.query || {};
+        params.query.token = token;
+        console.log("Token injected into request:", params.url);
       }
-    } catch (e) {
-      console.error("Error registering token with identity manager:", e);
-      // Refresh token via Firebase in case it expired
+    });
+    
+    // Register token with Identity Manager
+    IdentityManager.registerToken({
+      server: "https://webmaps.geology.utah.gov/arcgis",
+      token: token
+    });
+  }
+
+  // Handle Identity Manager dialog (prevent it from showing)
+  IdentityManager.on("dialog-create", function() {
+    console.log("Identity Manager dialog triggered - handling programmatically");
+    
+    // Get the dialog element and hide it
+    const dialog = document.querySelector(".esri-identity-form");
+    if (dialog) {
+      dialog.style.display = "none";
+    }
+    
+    // If we have a token, try to register it again
+    if (token) {
+      try {
+        IdentityManager.registerToken({
+          server: "https://webmaps.geology.utah.gov/arcgis",
+          token: token
+        });
+        
+        // Refresh after registering token
+        if (mapLayer) {
+          mapLayer.refresh();
+        }
+      } catch (e) {
+        console.error("Error registering token with identity manager:", e);
+        // Try to get a new token
+        getArcGISToken();
+      }
+    } else {
+      console.warn("No token available when identity manager requested login");
+      // Try to get a new token
       getArcGISToken();
     }
-  } else {
-    console.warn("No token available when identity manager requested login");
-    // Try to get a new token
-    getArcGISToken();
-  }
-});
+  });
 
           // --- Create Map and View ---
           map = new WebMap({ basemap: "topo" });
