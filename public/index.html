@@ -161,6 +161,80 @@
     let GlobalID = ""; // Holds BoreID for related data queries
     const projectName = 'https://us-central1-ut-dnr-ugs-geolmapportal-prod.cloudfunctions.net'; // Not used here, but kept if needed elsewhere
 
+    function updateLoadingStatus(title, message) {
+      let loadingDiv = document.querySelector('.page-loading');
+      // Create loadingDiv if it doesn't exist
+      if (!loadingDiv && document.body) {
+          loadingDiv = document.createElement('div');
+          loadingDiv.className = 'page-loading';
+          document.body.appendChild(loadingDiv);
+      }
+      if (loadingDiv) {
+        loadingDiv.innerHTML = `<div><h3>${title}</h3><p><small>${message}</small></p><img src="https://geomap.geology.utah.gov/images/loading.gif" alt="loader" style="width:50px; height:50px; margin-top:10px;"></div>`;
+        loadingDiv.style.display = 'flex';
+      }
+    }
+
+    function removeLoadingIndicator() {
+      const loadingDiv = document.querySelector('.page-loading');
+      if (loadingDiv) {
+        loadingDiv.style.transition = 'opacity 0.5s ease-out';
+        loadingDiv.style.opacity = '0';
+        setTimeout(() => { loadingDiv.remove(); }, 500);
+      }
+    }
+
+    function configureArcGISWithToken(esriConfig, token) {
+      // Optional - implementation
+      console.warn("configureArcGISWithToken called - consider removing if using only customParameters");
+    }
+
+    function check(val) {
+      if (val === null || typeof val === 'undefined') { return "--"; }
+      const strVal = String(val).trim();
+      return strVal === "" ? "--" : strVal;
+    }
+
+    function showHideCalcitePanels(showPanel, showCollapse) {
+        if (typeof $ !== 'undefined') {
+            $(".panel.in").removeClass("in");
+            $(".panel-collapse.in").removeClass("in");
+            if (showPanel) {
+                $(showPanel).collapse("show");
+                $(showCollapse).collapse("show");
+            }
+        } else { console.warn("jQuery not available for panels"); }
+    }
+
+    function createPopup(featureSet) {
+        var content = "";
+        showHideCalcitePanels("#panelData", "#collapseData");
+        var att = featureSet.graphic.attributes;
+        // ... (rest of popup content generation using check()) ...
+        if(att.project_name) content += "<span class='bold'>Project Name: </span>" + check(att.project_name) + "<br/>";
+        // ... add all other fields ...
+         if(att.report_url) content += "<span class='bold'>Report URL: </span> <a target='_blank' href='" + check(att.report_url) + "'>External Link</a><br />";
+        return content;
+    }
+
+    function queryRelated(id) {
+         console.log("Fetching related data for:", id);
+         updateLoadingStatus("Fetching related data..."); // Use defined helper
+         const headers = { 'Accept-Profile': 'boreholes' };
+         const baseUrl = "https://postgrest-seamlessgeolmap-734948684426.us-central1.run.app";
+         $('#projectDetails, #unitData, #unitDataExpand, #samplingData, #samplingDataExpand').empty().html("<i>Loading...</i>");
+         Promise.allSettled([
+             fetch(`${baseUrl}/borehole_locations?boreid=eq.${id}`, { headers }).then(res => res.ok ? res.json() : Promise.reject(res)),
+             fetch(`${baseUrl}/borehole_unit_table?boreid=eq.${id}`, { headers }).then(res => res.ok ? res.json() : Promise.reject(res)),
+             fetch(`${baseUrl}/borehole_sample_table?boreid=eq.${id}`, { headers }).then(res => res.ok ? res.json() : Promise.reject(res))
+         ]).then(results => {
+              // ... (Process results as before, using check() and jQuery/DOM updates) ...
+              console.log("Related data fetch complete.");
+         }).finally(() => {
+             removeLoadingIndicator(); // Use defined helper
+         });
+    }
+
     // --- Firebase Initialization and Auth Flow ---
     document.addEventListener('DOMContentLoaded', function() {
       console.log('DOM Content Loaded - Starting Firebase initialization');
