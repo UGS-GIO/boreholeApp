@@ -346,56 +346,26 @@ function hideLoading() {
       ) {
 
 
-          console.log('ArcGIS Modules Loaded. Initializing Map...');
-  const token = window.initialArcGISToken;
-  console.log('ArcGIS initialization with token:', token ? 'Available' : 'Not available');
+        console.log('ArcGIS Modules Loaded. Initializing Map...');
+const token = window.initialArcGISToken;
+console.log('ArcGIS initialization with token:', token ? 'Available' : 'Not available');
 
-  if (token) {
-      try {
-        // Register the token for the server
-        IdentityManager.registerToken({
-          server: "https://webmaps.geology.utah.gov/arcgis",
-          token: token
-        });
-        console.log("Token registered with IdentityManager for secure services");
-      } catch (error) {
-        console.error("Error registering token:", error);
-      }
-    }
-
-  // Handle Identity Manager dialog (prevent it from showing)
-  IdentityManager.on("dialog-create", function() {
-    console.log("Identity Manager dialog triggered - handling programmatically");
-    
-    // Get the dialog element and hide it
-    const dialog = document.querySelector(".esri-identity-form");
-    if (dialog) {
-      dialog.style.display = "none";
-    }
-    
-    // If we have a token, try to register it again
-    if (token) {
-      try {
-        IdentityManager.registerToken({
-          server: "https://webmaps.geology.utah.gov/arcgis",
-          token: token
-        });
-        
-        // Refresh after registering token
-        if (mapLayer) {
-          mapLayer.refresh();
-        }
-      } catch (e) {
-        console.error("Error registering token with identity manager:", e);
-        // Try to get a new token
-        getArcGISToken();
-      }
-    } else {
-      console.warn("No token available when identity manager requested login");
-      // Try to get a new token
-      getArcGISToken();
-    }
-  });
+// IMPORTANT: Use both approaches together
+if (token) {
+  // 1. Register with IdentityManager
+  try {
+    IdentityManager.registerToken({
+      server: "https://webmaps.geology.utah.gov/arcgis",
+      token: token
+    });
+    console.log("Token registered with IdentityManager for secure services");
+  } catch (error) {
+    console.error("Error registering token:", error);
+  }
+  
+  // 2. Also configure the interceptor
+  configureArcGISWithToken(esriConfig, token);
+}
 
           // --- Create Map and View ---
           map = new WebMap({ basemap: "topo" });
@@ -415,45 +385,46 @@ function hideLoading() {
 
           fullscreen = new Fullscreen({ view: mapView }); // Initialize fullscreen here
 
-          if (token) {
+// MODIFIED LAYER CREATION CODE
+if (token) {
+  // Try creating the layer with a very simple configuration first
+  mapLayer = new TileLayer({
+    url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+    id: "24k",
+    title: "1:24,000 Geologic Maps",
+    visible: false,
+    opacity: 0.7
+  });
+  
+  map.add(mapLayer);
+  console.log('24k layer added to map.');
+  
+  mapLayer.when(
+    () => { console.log('24k Layer finished loading!'); },
+    (error) => { 
+      console.error('24k Layer failed to load:', error);
+      
+      // If the simple approach fails, try a different method
+      console.log("Trying alternative approach with URL token parameter");
+      
+      // Remove the failed layer
+      map.remove(mapLayer);
+      
+      // Try approach with token in URL - similar to the working example
       mapLayer = new TileLayer({
-        url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+        url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer?token=" + token,
         id: "24k",
-        opacity: 0.7,
         title: "1:24,000 Geologic Maps",
         visible: false,
-        legendEnabled: false
-        // NO customParameters here - the IdentityManager will handle it
+        opacity: 0.7
       });
       
       map.add(mapLayer);
-      console.log('24k layer added to map.');
-      
-      mapLayer.when(
-        () => { console.log('24k Layer finished loading!'); },
-        (error) => { console.error('24k Layer failed to load:', error); }
-      );
-    } else {
-      console.warn('Token not available, 24k layer was not added.');
     }
-
- // Handle token refresh for authentication errors
- mapView.on("error", function(error) {
-      console.log("MapView error:", error);
-      
-      if ((error.name === "identity-manager:not-authorized" || 
-           error.name === "request:server") &&
-          firebase && firebase.auth().currentUser) {
-          
-        console.log("Authentication error, attempting to refresh token...");
-        getArcGISToken().then(function() {
-          // After getting a new token, refresh the layer
-          if (mapLayer) {
-            mapLayer.refresh();
-          }
-        });
-      }
-    });
+  );
+} else {
+  console.warn('Token not available, 24k layer was not added.');
+}
 
     // Prevent the Identity Manager dialog from showing
     IdentityManager.on("dialog-create", function() {
@@ -667,27 +638,25 @@ function hideLoading() {
       }
     }
 
-    // Optional: Interceptor configuration (can likely be removed)
     function configureArcGISWithToken(esriConfig, token) {
   console.log("Configuring esriConfig interceptor with token");
-  if (!token) return;
-  
-  // Add request interceptor to inject token into all requests to geology.utah.gov
+  if (!token) {
+    console.log('No token available for configuration');
+    return;
+  }
+    
+  // Configure request interceptor to add token to ALL requests to the specific domain
   esriConfig.request.interceptors.push({
-    urls: "https://webmaps.geology.utah.gov/arcgis/rest/services",
+    urls: [
+      "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+      "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0",
+      "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/30x60_Quads/MapServer"
+    ],
     before: function(params) {
-      // Check if token is not already in the URL or params
-      if (!params.url.includes("token=") && (!params.query || !params.query.token)) {
-        // Add token to URL params
-        params.query = params.query || {};
-        params.query.token = token;
-        console.log("Token injected into request:", params.url);
-      }
-    },
-    error: function(error) {
-      console.warn("Request error with token:", error);
-      // Return the error to let it propagate
-      return error;
+      params.requestOptions = params.requestOptions || {};
+      params.requestOptions.query = params.requestOptions.query || {};
+      params.requestOptions.query.token = token;
+      console.log("Token injected into request via interceptor:", params.url);
     }
   });
 }
