@@ -251,26 +251,7 @@
       }
     }
 
-    // Configure ArcGIS with token (used by the map initialization code)
-    function configureArcGISWithToken(esriConfig, token) {
-      if (!token) {
-        console.log('No token available for configuration');
-        return;
-      }
-      
-      // Configure request interceptor to add token to requests
-      esriConfig.request.interceptors.push({
-        urls: [
-          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0",
-          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/30x60_Quads/MapServer"
-        ],
-        before: function(params) {
-          params.requestOptions.query = params.requestOptions.query || {};
-          params.requestOptions.query.token = token;
-        }
-      });
-    }
+   
   </script>
 
   <!-- ArcGIS Configuration -->
@@ -427,6 +408,44 @@
 
   <!-- Map Initialization -->
   <script>
+
+function configureArcGISWithToken(esriConfig, token) {
+  if (!token) {
+    console.log('No token available for interceptor configuration');
+    return;
+  }
+  console.log(">>> Configuring esriConfig interceptor with token."); // Add log
+
+  // Check if this interceptor already exists to avoid duplicates if refreshed
+  const interceptorExists = esriConfig.request.interceptors.items.some(interceptor =>
+      interceptor.urls && interceptor.urls.includes("https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer")
+  );
+
+  if (!interceptorExists) {
+       esriConfig.request.interceptors.push({
+        urls: [
+          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0",
+          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/30x60_Quads/MapServer"
+          ],
+          // Function executed BEFORE the request matching 'urls' is sent
+          before: function(params) {
+            // Ensure the query object exists
+            params.requestOptions.query = params.requestOptions.query || {};
+            // Add the token parameter
+            params.requestOptions.query.token = token;
+            console.log(">>> Interceptor adding token to request for:", params.url); // Add log
+          },
+          // Optional: Add error handling within the interceptor if needed
+          // error: function(error, params) { ... }
+        });
+        console.log(">>> Interceptor added.");
+  } else {
+      console.log(">>> Interceptor already exists for this URL.");
+      // Optional: Consider updating the existing interceptor's token if necessary,
+      // but adding duplicates should be avoided. Pushing again might add duplicates.
+  }
+}
   // Keep the require statement outside, but define the callback separately
 let initializeMap; // Declare a variable to hold the map initialization function
 
@@ -453,10 +472,10 @@ require([
       console.log('ArcGIS initialization starting with token:', token ? 'Available' : 'Not available');
 
       // Configure ArcGIS with token if available
-      // if (token) {
-      //   // Use the passed token directly, no need for window.initialArcGISToken here
-      //   configureArcGISWithToken(esriConfig, token);
-      // }
+      if (token) {
+        // Use the passed token directly, no need for window.initialArcGISToken here
+        configureArcGISWithToken(esriConfig, token);
+      }
 
       // Map variables
       var GlobalID = "";
@@ -495,7 +514,9 @@ require([
           visible: false,
           legendEnabled: false,
           // Use the passed token here
-          customParameters: token ? { token: token } : {}
+          customParameters: {
+            token: token
+          }
       });
 
       // Add the layer ONLY if a token was successfully passed AND layer was created
