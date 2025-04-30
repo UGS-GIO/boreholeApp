@@ -192,40 +192,63 @@
       });
     }
 
-    // Get ArcGIS token
-    function getArcGISToken() {
-  try {
-    // Get functions instance for the CURRENT project (borehole-prod)
-    const functions = firebase.functions(); // Use compat version
-    // No need to set customDomain here
+    let recievedArcgisToken = null; // Store the token (or null if failed)
+let isTokenProcessComplete = false; // Flag for token success OR failure
+let isApiReady = false;          // Flag for require block completion
+let initializeMap = null;      // Variable to hold the function definition
 
-    // Call the PROXY function within borehole-prod
-    updateLoadingStatus('Loading map...', 'Requesting secure token...'); // Update status
+// --- Modified getArcGISToken function ---
+function getArcGISToken() {
+  try {
+    const functions = firebase.functions();
+    updateLoadingStatus('Loading map...', 'Requesting secure token...');
     const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken');
 
     proxyGetArcGISTokenFn()
       .then(function(result) {
-        arcgisToken = result.data.token; // Token comes from the proxy now
-        console.log('ArcGIS token received via proxy:', arcgisToken ? 'Token received successfully' : 'No token received');
-        console.log('>>> Actual Token String:', token);
-        window.initialArcGISToken = arcgisToken;
-        updateLoadingStatus('Loading map...', 'Initializing map components...');
-        loadArcGISAPI(); // Proceed to load ArcGIS API
+        const token = result.data.token;
+        console.log('ArcGIS token received via proxy:', token ? 'Success' : 'No token received');
+        recievedArcgisToken = token; // Store the received token
+        isTokenProcessComplete = true; // Mark process as complete
+
+        // Check if the API is *already* ready
+        if (isApiReady && typeof initializeMap === 'function') {
+            console.log("Token received, API was ready. Initializing map.");
+            initializeMap(recievedArcgisToken); // Call initializeMap now
+        } else {
+            console.log("Token received, waiting for API readiness.");
+            // Do nothing here, the require block will handle initialization later
+        }
       })
       .catch(function(error) {
-        // Handle errors returned from the proxy function
         console.error('Error getting ArcGIS token via proxy:', error.code, error.message, error.details);
         updateLoadingStatus('Authentication Warning', `Could not get token: ${error.message}. Some features may be limited.`);
+        recievedArcgisToken = null; // Ensure token is null on error
+        isTokenProcessComplete = true; // Mark process as complete (even though failed)
 
-        window.initialArcGISToken = null;
-        loadArcGISAPI(); // Proceed without token
+        // Check if the API is *already* ready
+        if (isApiReady && typeof initializeMap === 'function') {
+            console.log("Token fetch failed, API was ready. Initializing map without token.");
+            initializeMap(null); // Call initializeMap now without token
+        } else {
+             console.log("Token fetch failed, waiting for API readiness to initialize without token.");
+             // Do nothing here, the require block will handle initialization later
+        }
       });
   } catch (error) {
     console.error('Error setting up token function call:', error);
     updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
+    recievedArcgisToken = null;
+    isTokenProcessComplete = true; // Mark process as complete (even though failed)
 
-    window.initialArcGISToken = null;
-    loadArcGISAPI(); // Proceed without token
+    // Check if the API is *already* ready
+    if (isApiReady && typeof initializeMap === 'function') {
+        console.log("Token function setup failed, API was ready. Initializing map without token.");
+        initializeMap(null);
+    } else {
+        console.log("Token function setup failed, waiting for API readiness to initialize without token.");
+        // Do nothing here, the require block will handle initialization later
+    }
   }
 }
 
@@ -448,8 +471,6 @@ function configureArcGISWithToken(esriConfig, token) {
       // but adding duplicates should be avoided. Pushing again might add duplicates.
   }
 }
-  // Keep the require statement outside, but define the callback separately
-let initializeMap; // Declare a variable to hold the map initialization function
 
 require([
     // ... all your existing dependencies ...
@@ -470,13 +491,13 @@ require([
     CalciteMaps, CalciteMapArcGISSupport
 ) {
     // Define the map initialization function
-    initializeMap = function(token) { // Pass the token in
-      console.log('ArcGIS initialization starting with token:', token ? 'Available' : 'Not available');
+    initializeMap = function(passedToken) { // Pass the token in
+      console.log('ArcGIS initialization starting with token:', passedToken ? 'Available' : 'Not available');
 
       // Configure ArcGIS with token if available
       if (token) {
         // Use the passed token directly, no need for window.initialArcGISToken here
-        configureArcGISWithToken(esriConfig, token);
+        configureArcGISWithToken(esriConfig, passedToken);
       }
 
       // Map variables
@@ -516,20 +537,16 @@ require([
           visible: false,
           legendEnabled: false,
           // Use the passed token here
-          customParameters: {
-            token: token
-          }
+          customParameters: passedToken ? { token: passedToken } : {} // Use passedToken
       });
 
       // Add the layer ONLY if a token was successfully passed AND layer was created
-      if (token && mapLayer) {
-        map.add(mapLayer);
-        console.log("Token-secured layer added to map.");
-      } else if (!token) {
-        console.log("No token available, skipping token-secured layer.");
-      } else {
-        console.error("Token available but mapLayer failed to initialize?"); // Should not happen
-      }
+      if (passedToken && mapLayer) {
+           map.add(mapLayer);
+           console.log("Token-secured layer added to map object (interceptor will handle request token).");
+       } else if (!passedToken) {
+           console.log("No token available, skipping token-secured layer.");
+       }
 
 
       // ... (rest of your map initialization code: WFS layer, popups, widgets, etc.) ...
@@ -1239,6 +1256,18 @@ var searchWidget = new Search({
     console.log("ArcGIS API loaded, initializeMap function defined.");
 
 }); // End of require block
+
+console.log("ArcGIS API loaded, initializeMap function defined.");
+    isApiReady = true; // Signal that the API and the function definition are ready
+
+    // Check if the token process was *already* complete
+    if (isTokenProcessComplete) {
+        console.log("API ready, token process was already complete. Initializing map.");
+        initializeMap(recievedArcgisToken); // Call initializeMap now with the stored token/null
+    } else {
+        console.log("API ready, waiting for token process to complete.");
+        // Do nothing here, getArcGISToken will handle initialization later
+    }
 
 // --- Modified getArcGISToken Function ---
 function getArcGISToken() {
