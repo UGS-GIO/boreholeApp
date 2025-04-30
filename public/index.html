@@ -1238,7 +1238,7 @@ var searchWidget = new Search({
                    title: "Exploration Method"
                }
                // Conditionally add the TileLayer if it was added
-           ].concat(token && mapLayer ? [{ layer: mapLayer, title: mapLayer.title }] : [])
+           ].concat(passedToken && mapLayer ? [{ layer: mapLayer, title: mapLayer.title }] : [])
        });
 
 
