@@ -497,7 +497,7 @@ function initializeFirebase() {
         title: "1:24,000 Geologic Maps",
         visible: false,
         legendEnabled: false,
-        customParameters: token ? { token: token } : {}
+        customParameters: arcgisToken ? {token: arcgisToken} : {}
       });
       
       // Add the layer if token is available (otherwise skip it)
