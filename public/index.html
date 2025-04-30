@@ -500,10 +500,8 @@ function initializeFirebase() {
         customParameters: arcgisToken ? {token: arcgisToken} : {}
       });
       
-      // Add the layer if token is available (otherwise skip it)
-      if (token) {
         map.add(mapLayer);
-      }
+
       
       // Create renderer for WFS layer
       const renderer = {
