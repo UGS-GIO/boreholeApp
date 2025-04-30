@@ -357,7 +357,11 @@
       "calcite-maps/calcitemaps-arcgis-support-v0.10",
       "dojo/domReady!"
     ], function(WebMap, MapView, esriConfig, Home, Zoom, Compass, Search, Legend, LayerList, BasemapToggle, Fullscreen, FeatureLayer, SimpleMarkerSymbol, WFSLayer, TileLayer, ScaleBar, Attribution, watchUtils, Grid, query, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport) {
-      
+            
+      // Map variables
+      var GlobalID = "";
+      var mapLayer = null;
+      var arcgisToken = null;
 
       // Firebase Configuration and Initialization
 function initializeFirebase() {
@@ -450,10 +454,7 @@ function initializeFirebase() {
         }
       });
     }
-      
-      // Map variables
-      var GlobalID = "";
-      var mapLayer = null;
+
       
       // Create map
       var map = new WebMap({
