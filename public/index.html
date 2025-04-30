@@ -207,7 +207,7 @@
       .then(function(result) {
         arcgisToken = result.data.token; // Token comes from the proxy now
         console.log('ArcGIS token received via proxy:', arcgisToken ? 'Token received successfully' : 'No token received');
-
+        console.log('>>> Actual Token String:', token);
         window.initialArcGISToken = arcgisToken;
         updateLoadingStatus('Loading map...', 'Initializing map components...');
         loadArcGISAPI(); // Proceed to load ArcGIS API
@@ -453,10 +453,10 @@ require([
       console.log('ArcGIS initialization starting with token:', token ? 'Available' : 'Not available');
 
       // Configure ArcGIS with token if available
-      if (token) {
-        // Use the passed token directly, no need for window.initialArcGISToken here
-        configureArcGISWithToken(esriConfig, token);
-      }
+      // if (token) {
+      //   // Use the passed token directly, no need for window.initialArcGISToken here
+      //   configureArcGISWithToken(esriConfig, token);
+      // }
 
       // Map variables
       var GlobalID = "";
@@ -1120,51 +1120,43 @@ require([
       });
 
 
-      // Create search widget
-      var searchWidget = new Search({
-        container: "searchWidgetDiv",
-        view: mapView,
-        includeDefaultSources: false, // Start with no default sources
-        locationEnabled: true,       // Enable find my location
-        minSuggestCharacters: 3,
-        maxSuggestions: 6,           // Fewer suggestions might be less overwhelming
-        searchAllEnabled: false,     // Only search active source
-        popupEnabled: true,          // Show popup on search result click
-        sources: [{
-          layer: new FeatureLayer({ // Use FeatureLayer for better search integration than WFSLayer directly
-            url: layer.url, // Use the same URL as WFSLayer
-             // Important: Define outFields needed for search display and popup
-            outFields: ["boreid", "project_name", "projectid"],
-            // Ensure popupTemplate is defined if you want the search result to show popup
-            popupTemplate: popupTemplate,
-            // WFSLayer specific properties might not be needed here if using its URL
-            // wfsNamespace: layer.namespaceUri, // Might need adjustment based on FeatureLayer capability
-            // wfsName: layer.name
-             // --- Note: Direct WFS URL in FeatureLayer might have limitations ---
-             // Consider if a corresponding Feature Service endpoint exists for better search performance.
-             // If not, WFSLayer source setup might be necessary, but check API docs for Search source compatibility.
-          }),
-           // Configure Search Source properties
-           searchFields: ["boreid", "project_name"], // Fields to search within
-           suggestionTemplate: "{boreid} ({project_name})", // How suggestions appear
-           displayField: "boreid", // Field shown prominently in results
-           exactMatch: false,
-           outFields: ["*"], // Fields to retrieve for the result/popup
-           name: "Borehole ID/Project",
-           placeholder: "e.g., D-M12 or Project Name",
-           zoomScale: 5000, // Zoom closer on result selection
-           resultSymbol: { // Symbol for the found location
-                type: "simple-marker",
-                style: "circle",
-                color: [255, 255, 0, 0.8], // Yellow, slightly transparent
-                size: "12px",
-                outline: {
-                    color: [0, 0, 0, 0.8], // Black outline
-                    width: 1
-                }
-           }
-        }]
-      });
+// Create search widget
+var searchWidget = new Search({
+    container: "searchWidgetDiv",
+    view: mapView,
+    includeDefaultSources: false,
+    locationEnabled: true,
+    minSuggestCharacters: 3,
+    maxSuggestions: 6, // Adjusted as per previous suggestion
+    searchAllEnabled: false,
+    popupEnabled: true,
+    sources: [{
+        layer: new WFSLayer({ 
+            url: "https://ugs-geoserver-prod-flbcoqv7oa-uc.a.run.app/geoserver/wfs",
+            name: "borehole_locations", // WFS layer name
+            namespaceUri: "hazards",   // WFS namespace
+            outFields: ["*"], // Request fields needed for popup/suggestions
+            // id: "search-wfs" // Optional: unique ID if needed
+        }),
+
+        searchFields: ["boreid", "project_name"], // Fields to search on
+        suggestionTemplate: "{boreid} ({project_name})", // How suggestions appear
+        displayField: "boreid", // Field shown prominently in results
+        exactMatch: false,
+        outFields: ["*"], // Fields to retrieve for the result/popup
+        name: "Borehole ID/Project",
+        placeholder: "e.g., D-M12 or Project Name",
+        popupTemplate: popupTemplate, // Reuse your existing popup template
+        zoomScale: 5000, // Zoom closer on result selection
+        resultSymbol: {
+            type: "simple-marker",
+            style: "circle",
+            color: [255, 255, 0, 0.8],
+            size: "12px",
+            outline: { color: [0, 0, 0, 0.8], width: 1 }
+        },
+    }]
+});
 
 
       // Set up search expand events
