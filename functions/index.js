@@ -58,7 +58,8 @@ exports.proxyGetArcGISToken = onCall({
             // body: JSON.stringify({ some: 'data' }),
             // headers: {'Content-Type': 'application/json'}
         });
-
+        
+        logger.info(`Raw response data from target:`, { responseData: response.data });
         logger.info(`Received response from target function with status: ${response.status}`);
 
         // Check if the target function responded successfully
