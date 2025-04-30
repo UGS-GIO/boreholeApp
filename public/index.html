@@ -495,7 +495,7 @@ require([
       console.log('ArcGIS initialization starting with token:', passedToken ? 'Available' : 'Not available');
 
       // Configure ArcGIS with token if available
-      if (token) {
+      if (passedToken) {
         // Use the passed token directly, no need for window.initialArcGISToken here
         configureArcGISWithToken(esriConfig, passedToken);
       }
