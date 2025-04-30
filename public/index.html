@@ -158,119 +158,16 @@
         firebase.analytics();
         console.log("Firebase initialized successfully");
         
-        // Start authentication immediately
-        initAuth();
       } catch (error) {
         console.error("Firebase initialization error:", error);
-        updateLoadingStatus('Authentication Error', 'Failed to initialize Firebase. Some features may be limited.');
-        // Continue without Firebase
-        window.initialArcGISToken = null;
-        loadArcGISAPI();
       }
     });
 
-    // Initialize authentication
-    function initAuth() {
-      const auth = firebase.auth();
-      
-      auth.onAuthStateChanged(function(user) {
-        if (user) {
-          console.log('User signed in:', user.uid);
-          updateLoadingStatus('Loading map...', 'Authenticating map services...');
-          getArcGISToken();
-        } else {
-          console.log('No user signed in, signing in anonymously...');
-          auth.signInAnonymously()
-            .catch(function(error) {
-              console.error('Anonymous sign-in error:', error);
-              updateLoadingStatus('Authentication Error', 'Failed to sign in. Some features may be limited.');
-              // Continue without authentication
-              window.initialArcGISToken = null;
-              loadArcGISAPI();
-            });
-        }
-      });
-    }
 
-    // Get ArcGIS token
-    function getArcGISToken() {
-  try {
-    // Get functions instance for the CURRENT project (borehole-prod)
-    const functions = firebase.functions(); // Use compat version
-    // No need to set customDomain here
 
-    // Call the PROXY function within borehole-prod
-    updateLoadingStatus('Loading map...', 'Requesting secure token...'); // Update status
-    const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken');
 
-    proxyGetArcGISTokenFn()
-      .then(function(result) {
-        arcgisToken = result.data.token; // Token comes from the proxy now
-        console.log('ArcGIS token received via proxy:', arcgisToken ? 'Token received successfully' : 'No token received');
 
-        window.initialArcGISToken = arcgisToken;
-        updateLoadingStatus('Loading map...', 'Initializing map components...');
-        loadArcGISAPI(); // Proceed to load ArcGIS API
-      })
-      .catch(function(error) {
-        // Handle errors returned from the proxy function
-        console.error('Error getting ArcGIS token via proxy:', error.code, error.message, error.details);
-        updateLoadingStatus('Authentication Warning', `Could not get token: ${error.message}. Some features may be limited.`);
 
-        window.initialArcGISToken = null;
-        loadArcGISAPI(); // Proceed without token
-      });
-  } catch (error) {
-    console.error('Error setting up token function call:', error);
-    updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
-
-    window.initialArcGISToken = null;
-    loadArcGISAPI(); // Proceed without token
-  }
-}
-
-    // Load ArcGIS JavaScript API
-    function loadArcGISAPI() {
-      console.log('Loading ArcGIS JS API with token:', window.initialArcGISToken ? 'Available' : 'Not available');
-      // ArcGIS initialization will happen through the require statement which will use window.initialArcGISToken
-    }
-
-    // Update loading status display
-    function updateLoadingStatus(title, message) {
-      const loadingDiv = document.querySelector('.page-loading');
-      if (loadingDiv) {
-        loadingDiv.innerHTML = `<div><h3>${title}</h3><p><small>${message}</small></p></div>`;
-      }
-    }
-
-    // Helper function to remove loading indicator when map is ready
-    function removeLoadingIndicator() {
-      const loadingDiv = document.querySelector('.page-loading');
-      if (loadingDiv) {
-        loadingDiv.remove();
-      }
-    }
-
-    // Configure ArcGIS with token (used by the map initialization code)
-    function configureArcGISWithToken(esriConfig, token) {
-      if (!token) {
-        console.log('No token available for configuration');
-        return;
-      }
-      
-      // Configure request interceptor to add token to requests
-      esriConfig.request.interceptors.push({
-        urls: [
-          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
-          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0",
-          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/30x60_Quads/MapServer"
-        ],
-        before: function(params) {
-          params.requestOptions.query = params.requestOptions.query || {};
-          params.requestOptions.query.token = token;
-        }
-      });
-    }
   </script>
 
   <!-- ArcGIS Configuration -->
@@ -461,14 +358,98 @@
       "dojo/domReady!"
     ], function(WebMap, MapView, esriConfig, Home, Zoom, Compass, Search, Legend, LayerList, BasemapToggle, Fullscreen, FeatureLayer, SimpleMarkerSymbol, WFSLayer, TileLayer, ScaleBar, Attribution, watchUtils, Grid, query, arrayUtils, Collapse, Dropdown, CalciteMaps, CalciteMapArcGISSupport) {
       
-      // Get the token from global context
-      const token = window.initialArcGISToken;
-      console.log('ArcGIS initialization with token:', token ? 'Available' : 'Not available');
-      
-      // Configure ArcGIS with token if available
-      if (token) {
-        configureArcGISWithToken(esriConfig, token);
+
+      // Firebase Configuration and Initialization
+function initializeFirebase() {
+    //console.log('Initializing Firebase from mapcontrols.js...');
+    
+    try {
+        // Firebase should already be initialized in the HTML
+        const auth = firebase.auth();
+        const functions = firebase.functions();
+        
+        // Handle authentication state changes
+        auth.onAuthStateChanged(function(user) {
+            if (user) {
+                //console.log('User is signed in:', user.uid);
+                // Get ArcGIS token after successful auth
+                getArcGISToken(functions);
+            } else {
+                //console.log('No user signed in, signing in anonymously...');
+                auth.signInAnonymously()
+                    .catch(function(error) {
+                        //console.error('Anonymous sign-in error:', error);
+                        $('.page-loading').html('<div><h3>Authentication Error</h3><p><small>Failed to connect to map services. Please try again later.</small></p></div>');
+                    });
+            }
+        });
+    } catch (error) {
+        //console.error('Firebase initialization error in mapcontrols.js:', error);
+        $('.page-loading').html('<div><h3>Service Error</h3><p><small>Failed to initialize map services. Please try again later.</small></p></div>');
+        
+        // Continue with map initialization without Firebase
+        continueMapInitialization();
+    }
+}
+
+
+    // Get ArcGIS token
+    function getArcGISToken() {
+  try {
+    // Get functions instance for the CURRENT project (borehole-prod)
+    const functions = firebase.functions(); // Use compat version
+    // No need to set customDomain here
+
+    // Call the PROXY function within borehole-prod
+    updateLoadingStatus('Loading map...', 'Requesting secure token...'); // Update status
+    const proxyGetArcGISTokenFn = functions.httpsCallable('proxyGetArcGISToken');
+
+    proxyGetArcGISTokenFn()
+      .then(function(result) {
+        arcgisToken = result.data.token; // Token comes from the proxy now
+        console.log('ArcGIS token received via proxy:', arcgisToken ? 'Token received successfully' : 'No token received');
+
+        window.initialArcGISToken = arcgisToken;
+        updateLoadingStatus('Loading map...', 'Initializing map components...');
+        loadArcGISAPI(); // Proceed to load ArcGIS API
+      })
+      .catch(function(error) {
+        // Handle errors returned from the proxy function
+        console.error('Error getting ArcGIS token via proxy:', error.code, error.message, error.details);
+        updateLoadingStatus('Authentication Warning', `Could not get token: ${error.message}. Some features may be limited.`);
+
+        window.initialArcGISToken = null;
+        loadArcGISAPI(); // Proceed without token
+      });
+  } catch (error) {
+    console.error('Error setting up token function call:', error);
+    updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
+
+    window.initialArcGISToken = null;
+    loadArcGISAPI(); // Proceed without token
+  }
+}
+
+    // Configure ArcGIS with token (used by the map initialization code)
+    function configureArcGISWithToken(token) {
+      if (!token) {
+        console.log('No token available for configuration');
+        return;
       }
+      
+      // Configure request interceptor to add token to requests
+      esriConfig.request.interceptors.push({
+        urls: [
+          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
+          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0",
+          "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/30x60_Quads/MapServer"
+        ],
+        before: function(params) {
+          params.requestOptions.query = params.requestOptions.query || {};
+          params.requestOptions.query.token = token;
+        }
+      });
+    }
       
       // Map variables
       var GlobalID = "";
