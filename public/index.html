@@ -133,7 +133,6 @@
     
     // Initialize Firebase and start auth process immediately on page load
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('DOM Content Loaded - Starting Firebase initialization');
       
       // Add loading indicator
       const loadingDiv = document.createElement('div');
@@ -156,7 +155,6 @@
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         firebase.analytics();
-        console.log("Firebase initialized successfully");
         
         // Start authentication immediately
         initAuth();
@@ -175,14 +173,11 @@
       
       auth.onAuthStateChanged(function(user) {
         if (user) {
-          console.log('User signed in:', user.uid);
           updateLoadingStatus('Loading map...', 'Authenticating map services...');
           getArcGISToken();
         } else {
-          console.log('No user signed in, signing in anonymously...');
           auth.signInAnonymously()
             .catch(function(error) {
-              console.error('Anonymous sign-in error:', error);
               updateLoadingStatus('Authentication Error', 'Failed to sign in. Some features may be limited.');
               // Continue without authentication
               window.initialArcGISToken = null;
@@ -207,16 +202,15 @@ function getArcGISToken() {
     proxyGetArcGISTokenFn()
       .then(function(result) {
         const token = result.data.token;
-        console.log('ArcGIS token received via proxy:', token ? 'Success' : 'No token received');
         recievedArcgisToken = token; // Store the received token
         isTokenProcessComplete = true; // Mark process as complete
 
         // Check if the API is *already* ready
         if (isApiReady && typeof initializeMap === 'function') {
-            console.log("Token received, API was ready. Initializing map.");
+
             initializeMap(recievedArcgisToken); // Call initializeMap now
         } else {
-            console.log("Token received, waiting for API readiness.");
+
             // Do nothing here, the require block will handle initialization later
         }
       })
@@ -228,10 +222,10 @@ function getArcGISToken() {
 
         // Check if the API is *already* ready
         if (isApiReady && typeof initializeMap === 'function') {
-            console.log("Token fetch failed, API was ready. Initializing map without token.");
+
             initializeMap(null); // Call initializeMap now without token
         } else {
-             console.log("Token fetch failed, waiting for API readiness to initialize without token.");
+
              // Do nothing here, the require block will handle initialization later
         }
       });
@@ -243,19 +237,17 @@ function getArcGISToken() {
 
     // Check if the API is *already* ready
     if (isApiReady && typeof initializeMap === 'function') {
-        console.log("Token function setup failed, API was ready. Initializing map without token.");
+
         initializeMap(null);
     } else {
-        console.log("Token function setup failed, waiting for API readiness to initialize without token.");
-        // Do nothing here, the require block will handle initialization later
+
+
     }
   }
 }
 
     // Load ArcGIS JavaScript API
     function loadArcGISAPI() {
-      console.log('Loading ArcGIS JS API with token:', window.initialArcGISToken ? 'Available' : 'Not available');
-      // ArcGIS initialization will happen through the require statement which will use window.initialArcGISToken
     }
 
     // Update loading status display
@@ -434,10 +426,10 @@ function getArcGISToken() {
 
 function configureArcGISWithToken(esriConfig, token) {
   if (!token) {
-    console.log('No token available for interceptor configuration');
+   // console.log('No token available for interceptor configuration');
     return;
   }
-  console.log(">>> Configuring esriConfig interceptor with token."); // Add log
+  //console.log(">>> Configuring esriConfig interceptor with token."); // Add log
 
  // Access esriConfig.request.interceptors directly (it's array-like)
     // Use find instead of some for slightly cleaner logic maybe, or keep some
@@ -453,27 +445,17 @@ function configureArcGISWithToken(esriConfig, token) {
           "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer/0",
           "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/30x60_Quads/MapServer"
           ],
-          // Function executed BEFORE the request matching 'urls' is sent
           before: function(params) {
-            // Ensure the query object exists
             params.requestOptions.query = params.requestOptions.query || {};
-            // Add the token parameter
             params.requestOptions.query.token = token;
-            console.log(">>> Interceptor adding token to request for:", params.url); // Add log
           },
-          // Optional: Add error handling within the interceptor if needed
-          // error: function(error, params) { ... }
         });
-        console.log(">>> Interceptor added.");
   } else {
-      console.log(">>> Interceptor already exists for this URL.");
-      // Optional: Consider updating the existing interceptor's token if necessary,
-      // but adding duplicates should be avoided. Pushing again might add duplicates.
   }
 }
 
 require([
-    // ... all your existing dependencies ...
+
     "esri/WebMap", "esri/views/MapView", "esri/config", "esri/widgets/Home",
     "esri/widgets/Zoom", "esri/widgets/Compass", "esri/widgets/Search",
     "esri/widgets/Legend", "esri/widgets/LayerList", "esri/widgets/BasemapToggle",
@@ -484,7 +466,7 @@ require([
     "calcite-maps/calcitemaps-v0.10", "calcite-maps/calcitemaps-arcgis-support-v0.10",
     "dojo/domReady!"
 ], function(
-    // ... all your dependency variables ...
+
     WebMap, MapView, esriConfig, Home, Zoom, Compass, Search, Legend, LayerList,
     BasemapToggle, Fullscreen, FeatureLayer, SimpleMarkerSymbol, WFSLayer, TileLayer,
     ScaleBar, Attribution, watchUtils, Grid, query, arrayUtils, Collapse, Dropdown,
@@ -492,7 +474,7 @@ require([
 ) {
     // Define the map initialization function
     initializeMap = function(passedToken) { // Pass the token in
-      console.log('ArcGIS initialization starting with token:', passedToken ? 'Available' : 'Not available');
+
 
       // Configure ArcGIS with token if available
       if (passedToken) {
@@ -527,7 +509,6 @@ require([
       var fullscreen = new Fullscreen({ view: mapView });
 
       // Create the 1:24,000 Geologic Maps layer with token
-      // Pass token directly if available
       mapLayer = new TileLayer({
           url: "https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer",
           id: "24k",
@@ -536,21 +517,17 @@ require([
           title: "1:24,000 Geologic Maps",
           visible: false,
           legendEnabled: false,
-          // Use the passed token here
           customParameters: passedToken ? { token: passedToken } : {} // Use passedToken
       });
 
       // Add the layer ONLY if a token was successfully passed AND layer was created
       if (passedToken && mapLayer) {
            map.add(mapLayer);
-           console.log("Token-secured layer added to map object (interceptor will handle request token).");
        } else if (!passedToken) {
-           console.log("No token available, skipping token-secured layer.");
        }
 
 
-      // ... (rest of your map initialization code: WFS layer, popups, widgets, etc.) ...
-      // Make sure to remove any other references to window.initialArcGISToken inside this block
+
 
         // Create renderer for WFS layer
       const renderer = {
@@ -1069,15 +1046,12 @@ require([
                                   (errorDetails && (errorDetails.httpStatus === 401 || errorDetails.httpStatus === 403));
 
               if (isAuthError) {
-                  console.log("Token likely invalid or expired for 24k layer, attempting refresh...");
+
                   // Re-initiate the token fetch process
                   if (firebase && firebase.auth().currentUser) {
                       getArcGISToken(); // Re-call the function to get a new token and re-initialize
-                      // Note: Re-calling getArcGISToken will trigger initializeMap again.
-                      // Consider if you need to prevent multiple initializations,
-                      // perhaps by clearing the map container or using flags.
                   } else {
-                     console.log("No Firebase user, cannot refresh token automatically.");
+
                   }
               }
           }
@@ -1249,24 +1223,17 @@ var searchWidget = new Search({
            // Add listItemCreatedFunction if custom actions are needed
        });
 
-        console.log("Map initialization complete.");
+
     }; // End of initializeMap definition
 
-    // Check if map initialization function is ready before attempting to call it later
-    console.log("ArcGIS API loaded, initializeMap function defined.");
 
 }); // End of require block
 
-console.log("ArcGIS API loaded, initializeMap function defined.");
-    isApiReady = true; // Signal that the API and the function definition are ready
 
-    // Check if the token process was *already* complete
+    isApiReady = true; 
     if (isTokenProcessComplete) {
-        console.log("API ready, token process was already complete. Initializing map.");
         initializeMap(recievedArcgisToken); // Call initializeMap now with the stored token/null
     } else {
-        console.log("API ready, waiting for token process to complete.");
-        // Do nothing here, getArcGISToken will handle initialization later
     }
 
 // --- Modified getArcGISToken Function ---
@@ -1279,50 +1246,36 @@ function getArcGISToken() {
     proxyGetArcGISTokenFn()
       .then(function(result) {
         const token = result.data.token;
-        console.log('ArcGIS token received via proxy:', token ? 'Success' : 'No token received');
-
-        // NOW call initializeMap with the token
         if (typeof initializeMap === 'function') {
            initializeMap(token);
         } else {
-           console.error("initializeMap function not ready when token received.");
-           // Handle error - maybe retry or show error message
            updateLoadingStatus('Initialization Error', 'Map components failed to load.');
         }
       })
       .catch(function(error) {
-        console.error('Error getting ArcGIS token via proxy:', error.code, error.message, error.details);
         updateLoadingStatus('Authentication Warning', `Could not get token: ${error.message}. Some features may be limited.`);
 
         // Initialize map WITHOUT the token
          if (typeof initializeMap === 'function') {
            initializeMap(null); // Pass null to indicate no token
         } else {
-           console.error("initializeMap function not ready on token fetch failure.");
            updateLoadingStatus('Initialization Error', 'Map components failed to load.');
         }
       });
   } catch (error) {
-    console.error('Error setting up token function call:', error);
     updateLoadingStatus('Service Error', 'Failed to connect to authentication service. Some features may be limited.');
 
     // Initialize map WITHOUT the token
     if (typeof initializeMap === 'function') {
        initializeMap(null); // Pass null to indicate no token
     } else {
-        console.error("initializeMap function not ready on function call setup error.");
         updateLoadingStatus('Initialization Error', 'Map components failed to load.');
     }
   }
 }
 
-// --- Modified loadArcGISAPI Function ---
-// This function is now effectively redundant as initialization is triggered
-// directly from getArcGISToken after the token is received or fails.
-// You can remove the call to loadArcGISAPI() from getArcGISToken.
+
 function loadArcGISAPI() {
-  console.log('loadArcGISAPI called - Map initialization now happens after token fetch.');
-  // No longer responsible for triggering map init directly.
 }
 
 // --- Ensure Auth Flow Triggers Token Fetch Correctly ---
@@ -1331,25 +1284,18 @@ function initAuth() {
 
     auth.onAuthStateChanged(function(user) {
         if (user) {
-            console.log('User signed in:', user.uid);
             updateLoadingStatus('Loading map...', 'Authenticating map services...');
             getArcGISToken(); // This will now fetch token AND initialize the map
         } else {
-            console.log('No user signed in, signing in anonymously...');
             auth.signInAnonymously()
                 .then(() => {
-                     console.log("Anonymous sign-in successful.");
-                     // onAuthStateChanged will fire again with the anonymous user,
-                     // triggering getArcGISToken automatically. No need to call it here.
                 })
                 .catch(function(error) {
-                    console.error('Anonymous sign-in error:', error);
                     updateLoadingStatus('Authentication Error', 'Failed to sign in anonymously. Some features may be limited.');
                     // Initialize map WITHOUT token since auth failed
                     if (typeof initializeMap === 'function') {
                         initializeMap(null);
                     } else {
-                         console.error("initializeMap function not ready on anonymous sign-in failure.");
                          updateLoadingStatus('Initialization Error', 'Map components failed to load.');
                     }
                 });
