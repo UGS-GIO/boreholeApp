@@ -416,11 +416,13 @@ function configureArcGISWithToken(esriConfig, token) {
   }
   console.log(">>> Configuring esriConfig interceptor with token."); // Add log
 
-  // Check if this interceptor already exists to avoid duplicates if refreshed
-  const interceptorExists = esriConfig.request.interceptors.items.some(interceptor =>
-      interceptor.urls && interceptor.urls.includes("https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer")
-  );
-
+ // Access esriConfig.request.interceptors directly (it's array-like)
+    // Use find instead of some for slightly cleaner logic maybe, or keep some
+    const interceptorExists = esriConfig.request.interceptors.some(interceptor =>
+        interceptor && // Ensure interceptor itself is not null/undefined
+        interceptor.urls && // Check if urls property exists
+        interceptor.urls.includes("https://webmaps.geology.utah.gov/arcgis/rest/services/GeolMap/7_5_Quads/MapServer")
+    );
   if (!interceptorExists) {
        esriConfig.request.interceptors.push({
         urls: [
